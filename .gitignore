@@ -14,6 +14,7 @@ coverage
 *.local
 .env
 .env.*
+!.env.example
 
 # OS / editor junk
 .vscode/*

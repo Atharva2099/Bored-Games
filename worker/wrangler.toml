@@ -1,0 +1,7 @@
+name = "bored-games-turn"
+main = "turn-worker.js"
+compatibility_date = "2026-09-01"
+
+# Secrets are NOT stored in this file. Set them with:
+#   wrangler secret put TURN_KEY_ID
+#   wrangler secret put TURN_API_TOKEN

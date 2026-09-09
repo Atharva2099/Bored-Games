@@ -1,0 +1,68 @@
+import { logDiag } from './diagnostics';
+
+// URL of the Cloudflare Worker that mints short-lived TURN credentials
+// (see worker/turn-worker.js). Empty string means TURN is disabled — the
+// game still works, it just won't relay traffic for peers that can't reach
+// each other directly (e.g. both behind symmetric/carrier NAT).
+// Read at BUILD time by Vite; must be set before `npm run build`/`deploy`.
+export const TURN_ENDPOINT: string = import.meta.env.VITE_TURN_ENDPOINT ?? '';
+
+let cached: RTCIceServer[] = [];
+
+/** Returns the last successfully fetched TURN servers (empty if none yet). */
+export function getCachedTurn(): RTCIceServer[] {
+  return cached;
+}
+
+/**
+ * Fetches TURN credentials from the configured Worker endpoint. Never
+ * throws — on any failure (no endpoint configured, network error, timeout,
+ * unexpected shape) it resolves to an empty array so the game can always
+ * proceed without TURN.
+ */
+export async function fetchTurnServers(timeoutMs = 4000): Promise<RTCIceServer[]> {
+  if (!TURN_ENDPOINT) {
+    logDiag('turn-fetch', 'not configured');
+    return [];
+  }
+
+  try {
+    const signal =
+      typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
+        ? AbortSignal.timeout(timeoutMs)
+        : (() => {
+            const ctrl = new AbortController();
+            setTimeout(() => ctrl.abort(), timeoutMs);
+            return ctrl.signal;
+          })();
+
+    const res = await fetch(TURN_ENDPOINT, { signal });
+    if (!res.ok) {
+      logDiag('turn-fetch', `failed: HTTP ${res.status}`);
+      return [];
+    }
+    const data = (await res.json()) as { iceServers?: unknown };
+    const servers = Array.isArray(data?.iceServers)
+      ? (data.iceServers as RTCIceServer[])
+      : [];
+    if (servers.length === 0) {
+      logDiag('turn-fetch', 'failed: no iceServers in response');
+      return [];
+    }
+    cached = servers;
+    logDiag('turn-fetch', `ok ${servers.length} server(s)`);
+    return servers;
+  } catch (err) {
+    logDiag('turn-fetch', `failed: ${String(err)}`);
+    return [];
+  }
+}
+
+/**
+ * Fires off a TURN credential fetch and caches the result, ignoring
+ * errors. Call this early (e.g. on mount) so credentials are already warm
+ * by the time the user taps Create/Join.
+ */
+export function primeTurn(): void {
+  void fetchTurnServers();
+}

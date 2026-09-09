@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Check, Copy, RefreshCw, X } from 'lucide-react';
 import { diagText, getDiag, probeIce, probeRelays } from '../net/diagnostics';
 import { RELAY_URLS } from '../net/transport';
+import { getCachedTurn } from '../net/turn';
 
 type RelayResult = { url: string; ok: boolean; ms: number; detail: string };
 type IceResult = { types: string[]; errors: string[]; ms: number };
@@ -15,6 +16,7 @@ export function DiagnosticsOverlay({ onClose }: { onClose: () => void }) {
   const [iceResult, setIceResult] = useState<IceResult | null>(null);
   const [copyText, setCopyText] = useState<string | null>(null);
   const events = getDiag();
+  const turnServers = getCachedTurn();
 
   const runChecks = async () => {
     setRunning(true);
@@ -110,6 +112,15 @@ export function DiagnosticsOverlay({ onClose }: { onClose: () => void }) {
               Types: {iceResult.types.length ? iceResult.types.join(', ') : 'none'} (
               {iceResult.ms}ms)
             </p>
+            {turnServers.length > 0 ? (
+              <p className="text-xs text-emerald-300/90">
+                TURN: {turnServers.length} server(s) configured
+              </p>
+            ) : (
+              <p className="text-xs text-amber-300/90">
+                TURN: none — set VITE_TURN_ENDPOINT
+              </p>
+            )}
             {!iceResult.types.includes('relay') && (
               <p className="text-xs text-amber-300/90">
                 no TURN relay — players on mobile data may not connect
