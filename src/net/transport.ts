@@ -82,17 +82,21 @@ export interface RoomHandle {
   leave: () => void;
 }
 
-export function createRoom(roomId: string, isHost: boolean): RoomHandle {
+export function createRoom(roomId: string, _isHost: boolean): RoomHandle {
   // The room code IS the password: only devices holding the QR/link can
   // even complete a handshake. No server, no accounts, no keys to steal.
-  // passive: !isHost gives a star topology (guests connect only to the
-  // host, never to each other) — safe here because guests never talk to
-  // each other, only to the host.
+  // NOTE: do not set `passive: !isHost` here. It gives the star topology we
+  // want, but a passive peer never announces and does not even subscribe to
+  // its own signalling topic until it hears a NON-passive announce
+  // (core/dist/topic-strategy.mjs:68). The nostr strategy re-announces only
+  // every 60s (nostr/dist/index.mjs:14), so a guest joining mid-window sat
+  // dormant for up to a minute before it could connect. Full mesh is worse
+  // at 10 players but joins in seconds. Revisit if the interval ever becomes
+  // configurable, or when moving off nostr.
   const room = joinRoom(
     {
       appId: APP_ID,
       password: `bg1:${roomId}`,
-      passive: !isHost,
       turnConfig: TURN_SERVERS,
       relayConfig: { urls: RELAY_URLS },
     },

@@ -948,14 +948,10 @@ export default function App() {
             ))}
           </ul>
           <div className="text-xs text-white/50">
-            {/* Guests are passive: they peer only with the host, so a raw
-                peer count would always read 1. Show link health instead. */}
             Signal:{' '}
-            {isHost
+            {peerCount > 0
               ? `${peerCount} peer${peerCount === 1 ? '' : 's'} connected`
-              : peerCount > 0
-                ? 'connected to host'
-                : 'connecting…'}{' '}
+              : 'connecting…'}{' '}
             · {roomCode}
           </div>
           {!isHost && (pub?.players.length ?? 0) === 0 && (
