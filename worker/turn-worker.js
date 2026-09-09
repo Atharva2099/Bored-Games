@@ -50,6 +50,35 @@ function normaliseIceServers(upstreamBody) {
   return [];
 }
 
+// Best-effort per-IP throttle using the Cache API (no KV binding, no cost).
+// A legitimate player mints credentials once per game; this only stops a
+// script hammering the endpoint to burn the monthly quota. It is per-colo,
+// not global, so treat it as a dampener rather than a hard guarantee.
+const RATE_LIMIT_PER_MINUTE = 12;
+
+async function overRateLimit(request) {
+  const ip = request.headers.get('CF-Connecting-IP');
+  if (!ip) return false;
+  const minute = Math.floor(Date.now() / 60000);
+  const key = new Request(`https://ratelimit.invalid/${encodeURIComponent(ip)}/${minute}`);
+  const cache = caches.default;
+  try {
+    const hit = await cache.match(key);
+    const count = hit ? Number(await hit.text()) || 0 : 0;
+    if (count >= RATE_LIMIT_PER_MINUTE) return true;
+    await cache.put(
+      key,
+      new Response(String(count + 1), {
+        headers: { 'Cache-Control': 'max-age=60' },
+      }),
+    );
+    return false;
+  } catch {
+    // Never let the throttle itself break credential minting.
+    return false;
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -63,6 +92,27 @@ export default {
     // Only GET / is served; everything else 404s.
     if (request.method !== 'GET' || url.pathname !== '/') {
       return new Response('Not found', { status: 404 });
+    }
+
+    // HARD-BLOCK on Origin, not just CORS-header omission.
+    // CORS is enforced by the BROWSER, not by us: omitting
+    // Access-Control-Allow-Origin stops another *web page* from reading the
+    // response, but a plain `curl` sends no Origin, ignores CORS completely,
+    // and would happily walk off with working credentials. The Worker URL is
+    // inlined into the public JS bundle, so it is not a secret. Refusing
+    // requests whose Origin is absent or not allow-listed is what actually
+    // turns casual scraping away.
+    //
+    // Be clear-eyed about the limit: an Origin header is trivially spoofed
+    // (`curl -H 'Origin: https://atharva2099.github.io'`). This is a speed
+    // bump, not authentication. The real backstops are the short credential
+    // TTL below, the rate limit, and Cloudflare's own 1TB/month cap.
+    if (!origin || !ALLOWED_ORIGINS.has(origin)) {
+      return new Response('Forbidden', { status: 403 });
+    }
+
+    if (await overRateLimit(request)) {
+      return jsonResponse({ error: 'rate limited' }, 429, origin);
     }
 
     if (!env.TURN_KEY_ID || !env.TURN_API_TOKEN) {
@@ -84,7 +134,9 @@ export default {
             Authorization: `Bearer ${env.TURN_API_TOKEN}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ ttl: 86400 }),
+          // 1 hour, not 24. A credential scraped from the bundle expires
+          // fast, and a game session never needs longer than this.
+          body: JSON.stringify({ ttl: 3600 }),
         },
       );
     } catch (err) {

@@ -29,19 +29,21 @@ export const RELAY_URLS = [
   'wss://nostr.data.haus',
 ];
 
-// NO TURN SERVER IS CONFIGURED, and that is deliberate.
+// TURN is now sourced from a Cloudflare Realtime Worker (worker/turn-worker.js),
+// fetched client-side (see src/net/turn.ts) and passed into createRoom below.
 // Trystero's ICE defaults are STUN-only, which cannot connect two peers that
-// are both behind symmetric NAT (typical of phones on carrier data). The fix
-// for that is a TURN relay — but as of 2026-09 every free ANONYMOUS TURN
-// service is dead. Measured directly from a browser:
+// are both behind symmetric NAT (typical of phones on carrier data) — that
+// was confirmed directly against a real device (only `srflx` candidates, no
+// `host`/`relay`). A TURN relay with an account is required to fix it.
+// Historical note: as of 2026-09 every free ANONYMOUS TURN service was
+// measured dead from a browser:
 //   turn:openrelay.metered.ca:80    -> 400 TURN allocate error
 //   turn:openrelay.metered.ca:443   -> 701 Failed to establish connection
 //   turn:global.relay.metered.ca:80 -> 400 TURN allocate error
 //   turn:freeturn.tel / expressturn -> 701 host lookup failed
-// None produced a `relay` ICE candidate. Shipping dead TURN entries is worse
-// than none: ICE spends time on allocations that can never succeed.
-// To support carrier-NAT players a TURN server with an ACCOUNT is required
-// (Cloudflare's free tier is the best option). Add it here when available.
+// None produced a `relay` ICE candidate. That's why credentials are minted
+// server-side (via the Worker) with a real Cloudflare account instead of
+// hardcoding a dead or leakable TURN entry here.
 
 export interface JoinMsg {
   name: string;
@@ -171,6 +173,7 @@ export function createRoom(
   roomId: string,
   _isHost: boolean,
   onJoinError?: (e: { error: string }) => void,
+  iceServers?: RTCIceServer[],
 ): RoomHandle {
   // The room code IS the password: only devices holding the QR/link can
   // even complete a handshake. No server, no accounts, no keys to steal.
@@ -187,6 +190,12 @@ export function createRoom(
       appId: APP_ID,
       password: `bg1:${roomId}`,
       relayConfig: { urls: RELAY_URLS },
+      // `turnConfig` CONCATENATES onto Trystero's default STUN servers
+      // rather than replacing them (see node_modules/@trystero-p2p/core/dist
+      // /peer.mjs: `iceServers: defaultIceServers.concat(turnConfig ?? [])`).
+      // Using `rtcConfig.iceServers` instead would REPLACE the STUN
+      // defaults, which we don't want.
+      ...(iceServers && iceServers.length > 0 ? { turnConfig: iceServers } : {}),
     },
     roomId,
     onJoinError ? { onJoinError } : undefined,

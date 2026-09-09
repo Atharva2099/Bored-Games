@@ -20,6 +20,7 @@ import {
 import { HowToOverlay } from './ui/HowTo';
 import { DiagnosticsOverlay } from './ui/Diagnostics';
 import { logDiag, resetDiag } from './net/diagnostics';
+import { fetchTurnServers, getCachedTurn, primeTurn } from './net/turn';
 import { cancelSpeech, narrateNight, speakCue } from './ui/narrate';
 import { RoomFinePrint, WerewolfFinePrint } from './ui/About';
 import { HomeLogo, Landing, SHTeaser, type GamePick } from './ui/Landing';
@@ -164,6 +165,12 @@ export default function App() {
   const [hostLost, setHostLost] = useState(false);
   const clientId = useMemo(() => getClientId(), []);
 
+  // Warm TURN credentials while the user is still typing their name, so
+  // they're ready by the time Create/Join is tapped.
+  useEffect(() => {
+    primeTurn();
+  }, []);
+
   const rolesRef = useRef<Record<string, Role>>({});
   const nightRef = useRef<{
     wolfTarget: string | null;
@@ -190,7 +197,7 @@ export default function App() {
   const me = pub?.players.find((p) => p.peerId === myId) ?? null;
   const alive = me?.alive ?? true;
 
-  const join = (host: boolean, code: string, playerName: string) => {
+  const join = async (host: boolean, code: string, playerName: string) => {
     const cleanName = playerName.trim().slice(0, 20) || 'Player';
     const cleanCode = code.trim().toUpperCase() || makeRoomCode();
     resetDiag();
@@ -200,7 +207,14 @@ export default function App() {
     const sess = { room: cleanCode, name: cleanName, isHost: host };
     localStorage.setItem('bg-session', JSON.stringify(sess));
     setSession(sess);
-    const h = createRoom(cleanCode, host, (e) => logDiag('join-error', e.error));
+    const iceServers =
+      getCachedTurn().length > 0 ? getCachedTurn() : await fetchTurnServers();
+    const h = createRoom(
+      cleanCode,
+      host,
+      (e) => logDiag('join-error', e.error),
+      iceServers,
+    );
     setHandle(h);
     setRoomCode(cleanCode);
     setIsHost(host);
@@ -866,7 +880,7 @@ export default function App() {
               </span>
               <span className="flex gap-2 shrink-0">
                 <button
-                  onClick={() => join(session.isHost, session.room, session.name)}
+                  onClick={() => void join(session.isHost, session.room, session.name)}
                   className="text-sm font-bold underline"
                 >
                   Rejoin
@@ -926,13 +940,13 @@ export default function App() {
           />
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => join(true, roomCode || makeRoomCode(), name)}
+              onClick={() => void join(true, roomCode || makeRoomCode(), name)}
               className="btn-accent"
             >
               Create
             </button>
             <button
-              onClick={() => roomCode.trim() && join(false, roomCode, name)}
+              onClick={() => roomCode.trim() && void join(false, roomCode, name)}
               className="rounded bg-white text-black font-semibold py-2"
             >
               Join

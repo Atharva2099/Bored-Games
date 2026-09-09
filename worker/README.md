@@ -80,3 +80,27 @@ runtime.
   both rather than assuming one. If credential generation ever fails, the
   Worker's error response includes the raw upstream status and body so it
   can be diagnosed without guessing.
+
+## Who can use your quota
+
+The Worker URL is inlined into the public JS bundle, so **it is not a secret** —
+anyone can read it off the deployed site. What protects the quota:
+
+| Control | What it actually stops |
+|---|---|
+| Origin allowlist (hard 403) | Casual `curl` and other sites' pages. **Spoofable** with `-H 'Origin: ...'` — a speed bump, not auth. |
+| 1-hour credential TTL | A scraped credential dies quickly instead of lasting a day. |
+| Per-IP rate limit (12/min) | A script hammering the endpoint. Per-colo and best-effort, not global. |
+| Cloudflare's 1TB/month cap | Bounds the worst case. TURN only carries traffic when no direct P2P path exists. |
+
+**Forks of the repo do not get your account.** `VITE_TURN_ENDPOINT` lives in
+`.env`, which is gitignored, so anyone who forks and builds simply gets no
+TURN. Only your *deployed* URL is exposed.
+
+If you ever see unexpected usage: rotate the TURN key in the Cloudflare
+dashboard and `wrangler secret put TURN_KEY_ID` / `TURN_API_TOKEN` again. The
+old credentials stop working immediately.
+
+To lock it down harder, add a Cloudflare WAF rate-limiting rule on the Worker
+route in the dashboard — that runs before the Worker and is global rather than
+per-colo.
