@@ -148,7 +148,7 @@ export function Landing({ onPick }: { onPick: (g: GamePick) => void }) {
       </main>
 
       <footer className="px-5 pb-8 text-center text-[11px] text-white/35">
-        Fan project · non-commercial · SH adaptation CC BY–NC–SA 4.0
+        Fan project · non-commercial · SH adaptation CC BY–NC–SA 4.0 · build {__BUILD_ID__}
       </footer>
     </div>
   );

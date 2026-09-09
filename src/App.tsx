@@ -406,7 +406,9 @@ export default function App() {
             players,
             log: [
               ...(saved.pub.log as string[]),
-              'Host rebooted — night inputs reset.',
+              ...((saved.pub as PublicState).phase === 'lobby'
+                ? []
+                : ['Host rebooted — night inputs reset.']),
             ].slice(-50),
           };
           const me = players.find((p) => p.peerId === selfId);
@@ -438,6 +440,7 @@ export default function App() {
         stopTimers();
         room.onPeerJoin = null;
         room.onPeerLeave = null;
+        void room.leave();
       };
     }
 
@@ -451,6 +454,7 @@ export default function App() {
       stopTimers();
       room.onPeerJoin = null;
       room.onPeerLeave = null;
+      void room.leave();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inRoom, handle]);

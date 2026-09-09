@@ -48,7 +48,7 @@ export function RoomFinePrint({ game }: { game: 'werewolf' }) {
   if (game === 'werewolf') {
     return (
       <div className="text-[11px] text-white/35 text-center">
-        Fan project, non-commercial · original code MIT
+        Fan project, non-commercial · original code MIT · build {__BUILD_ID__}
       </div>
     );
   }
