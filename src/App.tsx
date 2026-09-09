@@ -34,6 +34,14 @@ import {
   type PublicState,
   type RoomHandle,
 } from './net/transport';
+import {
+  addPlayer,
+  disconnectedAlive,
+  normalize,
+  rejoin,
+  setPresence,
+  type Player,
+} from './net/presence';
 
 const ROLE_META: Record<Role, { label: string; Icon: typeof Moon; blurb: string }> = {
   werewolf: {
@@ -62,7 +70,7 @@ const initialPublic = (
   players: { peerId: string; name: string }[],
 ): PublicState => ({
   phase: 'lobby',
-  players: players.map((p) => ({ ...p, alive: true })),
+  players: players.map((p) => ({ ...p, alive: true, online: true })),
   dayCount: 1,
   log: ['Room created. Waiting for players…'],
   votes: {},
@@ -148,6 +156,7 @@ export default function App() {
     () => localStorage.getItem('bg-sound') !== '0',
   );
   const [showHelp, setShowHelp] = useState(false);
+  const [hostLost, setHostLost] = useState(false);
   const clientId = useMemo(() => getClientId(), []);
 
   const rolesRef = useRef<Record<string, Role>>({});
@@ -164,6 +173,7 @@ export default function App() {
   const clientToPeer = useRef<Record<string, string>>({});
   const peerToClient = useRef<Record<string, string>>({});
   const isHostRef = useRef(false);
+  const lastPubAtRef = useRef<number | null>(null);
 
   pubRef.current = pub;
   isHostRef.current = isHost;
@@ -249,21 +259,16 @@ export default function App() {
       let logLine: string;
       let nextPlayers = base.players;
       if (prevPeer && prevPeer !== peerId) {
-        // refresh rejoin: migrate records, keep the seat
+        // refresh rejoin: migrate records, keep the seat, keep alive as-is
         rekeyPeer(prevPeer, peerId);
-        nextPlayers = base.players.map((p) =>
-          p.peerId === prevPeer ? { ...p, peerId } : p,
-        );
+        nextPlayers = rejoin(base.players, prevPeer, peerId, msgName);
         logLine = `${msgName} reconnected.`;
         const role = rolesRef.current[peerId];
         if (role && base.phase !== 'lobby')
           sendNow?.sendRole({ role }, peerId);
       } else if (!base.players.some((p) => p.peerId === peerId)) {
         const spectate = base.phase !== 'lobby';
-        nextPlayers = [
-          ...base.players,
-          { peerId, name: msgName, alive: !spectate },
-        ];
+        nextPlayers = addPlayer(base.players, peerId, msgName, spectate);
         logLine = spectate
           ? `${msgName} joined as spectator.`
           : `${msgName} joined.`;
@@ -289,7 +294,11 @@ export default function App() {
     });
     const pubAct = room.makeAction('pub', {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      onMessage: (data: any) => setPub(data as unknown as PublicState),
+      onMessage: (data: any) => {
+        lastPubAtRef.current = Date.now();
+        const incoming = data as unknown as PublicState;
+        setPub({ ...incoming, players: normalize(incoming.players) });
+      },
     });
     const roleAct = room.makeAction('role', {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -387,24 +396,35 @@ export default function App() {
       setPub((prev) => {
         if (!prev) return prev;
         const left = prev.players.find((p) => p.peerId === peerId);
+        // A dropped socket is a NETWORK event, not a game outcome — `alive`
+        // is game state (killed by wolves / exiled) and must never be
+        // written here. Only `online` (presence) flips off; the player can
+        // still be voted for / targeted and won't end the game by dropping.
         const next: PublicState = {
           ...prev,
-          players: prev.players.map((p) =>
-            p.peerId === peerId ? { ...p, alive: false } : p,
-          ),
-          log: [...prev.log, `${left?.name ?? 'A player'} disconnected.`].slice(-50),
+          players: setPresence(prev.players as Player[], peerId, false),
+          log: [
+            ...prev.log,
+            `${left?.name ?? 'A player'} lost connection — reconnecting…`,
+          ].slice(-50),
         };
         sendersRef.current?.sendPub(next as unknown as Record<string, unknown>);
         return next;
       });
     };
 
-    // connection diagnostics: live peer count for the lobby signal readout
+    // connection diagnostics: live peer count for the lobby signal readout,
+    // and (guests only) detect a host that's gone silent so we can surface
+    // it instead of staring at a stale board.
     const peerTimer = setInterval(() => {
       try {
         setPeerCount(Object.keys(room.getPeers()).length);
       } catch {
         /* trackers unreachable */
+      }
+      if (!isHostRef.current) {
+        const last = lastPubAtRef.current;
+        setHostLost(last !== null && Date.now() - last > 15000);
       }
     }, 1000);
 
@@ -412,6 +432,7 @@ export default function App() {
     // host's state arrives. Aggressive in the first seconds (when the relay
     // handshake is still warming up), relaxed backoff after.
     let retries = 0;
+    let slowRetryTimer: ReturnType<typeof setInterval> | null = null;
     const announce = () =>
       sendersRef.current?.sendJoin({ name: myName, client: clientId });
     const retryTimer = setInterval(() => {
@@ -423,7 +444,7 @@ export default function App() {
       retries++;
       if (retries === 12) {
         clearInterval(retryTimer);
-        setInterval(() => {
+        slowRetryTimer = setInterval(() => {
           if (!pubRef.current) announce();
         }, 4000);
       }
@@ -452,6 +473,7 @@ export default function App() {
     const stopTimers = () => {
       clearInterval(peerTimer);
       clearInterval(retryTimer);
+      if (slowRetryTimer) clearInterval(slowRetryTimer);
       clearInterval(beatTimer);
       document.removeEventListener('visibilitychange', onVisible);
     };
@@ -470,9 +492,9 @@ export default function App() {
             rolesRef.current[selfId] = rolesRef.current[oldPeer];
             delete rolesRef.current[oldPeer];
           }
-          const players = (saved.pub.players as PublicState['players']).map(
-            (p) => (p.peerId === oldPeer ? { ...p, peerId: selfId } : p),
-          );
+          const players = normalize(
+            saved.pub.players as PublicState['players'],
+          ).map((p) => (p.peerId === oldPeer ? { ...p, peerId: selfId } : p));
           seed = {
             ...(saved.pub as PublicState),
             players,
@@ -954,6 +976,11 @@ export default function App() {
               : 'connecting…'}{' '}
             · {roomCode}
           </div>
+          {!isHost && hostLost && (
+            <div className="text-sm text-amber-300/90 space-y-1">
+              <p>Connection to the host was lost — retrying…</p>
+            </div>
+          )}
           {!isHost && (pub?.players.length ?? 0) === 0 && (
             <div className="text-sm text-amber-200/90 space-y-2">
               <p>Looking for the host… if this sticks: check the code matches, both devices need internet, then retry.</p>
@@ -1089,6 +1116,11 @@ export default function App() {
           {isHost && phase === 'night' && (
             <div className="panel cut space-y-2">
               <div className="text-xs uppercase text-white/50">Night desk — picks landed</div>
+              {disconnectedAlive(pub.players).length > 0 && (
+                <p className="text-xs text-amber-300/90">
+                  Offline: {disconnectedAlive(pub.players).map((p) => p.name).join(', ')} — their input may not arrive.
+                </p>
+              )}
               {(() => {
                 const vals = Object.values(rolesRef.current);
                 const rows: { key: 'wolf' | 'save' | 'see'; label: string }[] = [];
@@ -1133,7 +1165,14 @@ export default function App() {
             <button onClick={hostToVote} className="w-full rounded bg-white text-black font-bold py-2.5">Go to vote</button>
           )}
           {isHost && phase === 'vote' && (
-            <button onClick={hostResolveVote} className="w-full rounded bg-amber-300 text-black font-bold py-2.5">Resolve vote → Night</button>
+            <div className="space-y-2">
+              {disconnectedAlive(pub.players).length > 0 && (
+                <p className="text-xs text-amber-300/90">
+                  Offline: {disconnectedAlive(pub.players).map((p) => p.name).join(', ')} — their input may not arrive.
+                </p>
+              )}
+              <button onClick={hostResolveVote} className="w-full rounded bg-amber-300 text-black font-bold py-2.5">Resolve vote → Night</button>
+            </div>
           )}
           </div>
           <div className="space-y-3 lg:space-y-4 lg:sticky lg:top-4 mt-3 lg:mt-0">
@@ -1141,11 +1180,24 @@ export default function App() {
           <div className="bg-white/5 border border-white/10 cut p-3">
             <div className="text-xs uppercase text-white/50 mb-1">Players</div>
             <ul className="text-sm space-y-1">
-              {pub.players.map((p) => (
-                <li key={p.peerId} className={p.alive ? 'flex items-center gap-2' : 'line-through text-white/40 flex items-center gap-2'}>
-                  {p.alive ? <User size={14} /> : <Skull size={14} />} {p.name}
-                </li>
-              ))}
+              {pub.players.map((p) => {
+                const offline = p.alive && !p.online;
+                return (
+                  <li
+                    key={p.peerId}
+                    className={
+                      !p.alive
+                        ? 'line-through text-white/40 flex items-center gap-2'
+                        : offline
+                          ? 'text-amber-300/80 flex items-center gap-2'
+                          : 'flex items-center gap-2'
+                    }
+                  >
+                    {!p.alive ? <Skull size={14} /> : <User size={14} />} {p.name}
+                    {offline && <span className="text-xs">reconnecting…</span>}
+                  </li>
+                );
+              })}
             </ul>
           </div>
 

@@ -1,6 +1,9 @@
 import { joinRoom, selfId } from '@trystero-p2p/nostr';
 import type { Room, TurnServerConfig } from '@trystero-p2p/core';
 import type { Role } from '../game/werewolf/logic';
+import type { Player } from './presence';
+
+export type { Player } from './presence';
 
 export const APP_ID = 'bored-games-werewolf-v1';
 
@@ -41,7 +44,7 @@ export interface JoinMsg {
 
 export interface PublicState {
   phase: 'lobby' | 'role' | 'night' | 'day' | 'vote' | 'ended';
-  players: { peerId: string; name: string; alive: boolean }[];
+  players: Player[];
   dayCount: number;
   log: string[];
   votes?: Record<string, string>;
