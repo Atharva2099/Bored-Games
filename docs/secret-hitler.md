@@ -10,7 +10,9 @@ is the template to reuse.
 - Background: Deep Steel Blue `#3F5A62`
 - Hooks already exist in `src/index.css`: wrap SH screens in
   `data-game="secret-hitler"` and use `className="btn-accent"` for primary
-  buttons. No new theme code needed — just use the attributes.
+  buttons. Display type is Anton (propaganda-poster condensed) via
+  `className="font-display"`. No new theme code needed — just use the
+  attributes.
 
 ## License rules (must follow — verified against secrethitler.com)
 

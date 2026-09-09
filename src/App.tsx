@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import {
+  Eye,
+  Moon,
+  Skull,
+  Sun,
+  Syringe,
+  Trophy,
+  User,
+  Vote,
+  Wheat,
+} from 'lucide-react';
 import { AboutFull, AboutLine } from './ui/About';
 import { Landing, SHTeaser, type GamePick } from './ui/Landing';
 import {
@@ -16,6 +27,13 @@ import {
   type PublicState,
   type RoomHandle,
 } from './net/transport';
+
+const ROLE_META: Record<Role, { label: string; Icon: typeof Moon }> = {
+  werewolf: { label: 'Werewolf', Icon: Moon },
+  seer: { label: 'Seer', Icon: Eye },
+  doctor: { label: 'Doctor', Icon: Syringe },
+  villager: { label: 'Villager', Icon: Wheat },
+};
 
 const initialPublic = (
   players: { peerId: string; name: string }[],
@@ -324,9 +342,9 @@ export default function App() {
       log: [
         ...pub.log,
         diedId
-          ? `☀️ Day ${pub.dayCount}: ${diedName} was killed.`
-          : `☀️ Day ${pub.dayCount}: nobody died.`,
-        ...(winner ? [`🏆 ${winner} win!`] : []),
+          ? `Day ${pub.dayCount}: ${diedName} was killed.`
+          : `Day ${pub.dayCount}: nobody died.`,
+        ...(winner ? [`${winner} win!`] : []),
       ].slice(-50),
     });
   };
@@ -363,8 +381,8 @@ export default function App() {
       votes: {},
       log: [
         ...pub.log,
-        exiled ? `🗳️ ${exName} was exiled.` : '🗳️ Tie — nobody exiled.',
-        ...(winner ? [`🏆 ${winner} win!`] : [`🌙 Night ${pub.dayCount + 1} falls…`]),
+        exiled ? `${exName} was exiled.` : 'Tie — nobody exiled.',
+        ...(winner ? [`${winner} win!`] : [`Night ${pub.dayCount + 1} falls…`]),
       ].slice(-50),
     });
   };
@@ -425,7 +443,7 @@ export default function App() {
           <button onClick={() => setSelected(null)} className="text-xs text-white/60 underline">
             ← All games
           </button>
-          <h1 className="text-3xl font-bold">🐺 Bored Games</h1>
+          <h1 className="font-display text-4xl flex items-center gap-2"><Moon size={30} /> Werewolf</h1>
           <p className="text-sm text-white/70">
             Werewolf over the internet with a room code. No server, no
             sign-up. One Host, everyone joins.
@@ -512,7 +530,7 @@ export default function App() {
           </div>
           <ul className="divide-y divide-white/10">
             {(pub?.players ?? []).map((p) => (
-              <li key={p.peerId} className="py-1.5 text-sm">🙂 {p.name}</li>
+              <li key={p.peerId} className="py-1.5 text-sm flex items-center gap-2"><User size={14} /> {p.name}</li>
             ))}
           </ul>
           {isHost ? (
@@ -529,12 +547,23 @@ export default function App() {
         <>
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
             <div className="text-xs uppercase text-white/50">Your role</div>
-            <div className="text-2xl font-bold">
-              {myRole
-                ? ({ werewolf: '🐺 Werewolf', seer: '🔮 Seer', doctor: '💉 Doctor', villager: '🌾 Villager' } as Record<Role, string>)[myRole]
-                : '…waiting for host…'}
+            <div className="font-display text-3xl flex items-center gap-2">
+              {myRole ? (
+                <>
+                  {(() => {
+                    const { label, Icon } = ROLE_META[myRole];
+                    return (
+                      <>
+                        <Icon size={26} /> {label}
+                      </>
+                    );
+                  })()}
+                </>
+              ) : (
+                '…waiting for host…'
+              )}
             </div>
-            {seerSeen && <div className="text-xs text-violet-300 mt-1">🔮 {seerSeen}</div>}
+            {seerSeen && <div className="text-xs text-violet-300 mt-1 flex items-center gap-1"><Eye size={12} /> {seerSeen}</div>}
             {!alive && <div className="text-sm text-white/60 mt-1">You are dead — watch only.</div>}
           </div>
 
@@ -576,7 +605,7 @@ export default function App() {
 
           {phase === 'ended' && (
             <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center space-y-2">
-              <div className="text-3xl">🏆 {pub.winner} win!</div>
+              <div className="font-display text-3xl flex items-center justify-center gap-2"><Trophy size={28} /> {pub.winner} win!</div>
               {isHost && (
                 <button onClick={hostRestart} className="btn-accent">Back to lobby</button>
               )}
@@ -597,8 +626,8 @@ export default function App() {
             <div className="text-xs uppercase text-white/50 mb-1">Players</div>
             <ul className="text-sm space-y-1">
               {pub.players.map((p) => (
-                <li key={p.peerId} className={p.alive ? '' : 'line-through text-white/40'}>
-                  {p.alive ? '🙂' : '💀'} {p.name}
+                <li key={p.peerId} className={p.alive ? 'flex items-center gap-2' : 'line-through text-white/40 flex items-center gap-2'}>
+                  {p.alive ? <User size={14} /> : <Skull size={14} />} {p.name}
                 </li>
               ))}
             </ul>
@@ -631,8 +660,8 @@ function NightPanel(props: {
   if (!myRole) return <div className="text-sm text-white/60">Waiting for role…</div>;
   return (
     <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
-      <div className="font-semibold">
-        🌙 Night — {myRole === 'werewolf' ? 'pick a kill' : myRole === 'seer' ? 'pick to inspect' : myRole === 'doctor' ? 'pick to save' : 'sleep… villagers wait'}
+      <div className="font-semibold flex items-center gap-2">
+        <Moon size={16} /> Night — {myRole === 'werewolf' ? 'pick a kill' : myRole === 'seer' ? 'pick to inspect' : myRole === 'doctor' ? 'pick to save' : 'sleep… villagers wait'}
       </div>
       {myRole !== 'villager' && (
         <>
@@ -670,7 +699,7 @@ function VotePanel(props: {
   Object.values(props.votes).forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1));
   return (
     <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
-      <div className="font-semibold">{props.phase === 'day' ? '☀️ Day — discuss, then host opens vote' : '🗳️ Vote — tap to exile'}</div>
+      <div className="font-semibold flex items-center gap-2">{props.phase === 'day' ? <><Sun size={16} /> Day — discuss, then host opens vote</> : <><Vote size={16} /> Vote — tap to exile</>}</div>
       <div className="grid grid-cols-2 gap-2">
         {props.players.filter((p) => p.alive).map((p) => (
           <button

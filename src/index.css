@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
-/* Game palettes (see docs/palettes.md for sources).
-   Werewolf  = Lavender Haze #92A9E1 on Soft Graphite #23232b.
+/* Game palettes.
+   Werewolf = Lavender Haze #92A9E1 on AMOLED black (moonlit noir).
    Secret Hitler = Burnt Peach #FE8254 on Deep Steel Blue #3F5A62.
    Scope per game with data-game="werewolf" | "secret-hitler". */
 :root,
@@ -25,7 +25,17 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
 }
 
-/* Primary action button in the active game's accent color. */
+/* Per-game display type.
+   Landing + Secret Hitler: Anton (condensed poster).
+   Werewolf: Pirata One (gothic blackletter, moonlit-noir identity). */
+.font-display {
+  font-family: 'Anton', Impact, 'Arial Narrow', sans-serif;
+}
+
+[data-game='werewolf'] .font-display {
+  font-family: 'Pirata One', 'Anton', Impact, serif;
+  letter-spacing: 0.02em;
+}
 .btn-accent {
   background: var(--accent);
   color: var(--accent-ink);
