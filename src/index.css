@@ -6,10 +6,10 @@
    Scope per game with data-game="werewolf" | "secret-hitler". */
 :root,
 [data-game='werewolf'] {
-  --bg: #23232b;
-  --panel: rgba(255, 255, 255, 0.05);
+  --bg: #000;
+  --panel: rgba(146, 169, 225, 0.08);
   --accent: #92a9e1;
-  --accent-ink: #23232b;
+  --accent-ink: #000;
 }
 
 [data-game='secret-hitler'] {
@@ -33,4 +33,9 @@ body {
   border-radius: 0.75rem;
   padding: 0.625rem 1rem;
   width: 100%;
+  box-shadow: 0 0 24px rgba(146, 169, 225, 0.35);
+}
+
+[data-game='secret-hitler'] .btn-accent {
+  box-shadow: 0 0 24px rgba(254, 130, 84, 0.35);
 }
