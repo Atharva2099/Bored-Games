@@ -18,9 +18,20 @@ export interface NightResult {
   seerResult: Role | null;
 }
 
-/** Role counts for a player total. Wolves scale, seer/doctor fixed if >=7. */
+/** Role counts for a player total. Wolves scale, seer/doctor fixed if >=7.
+ * 1-4 players use the demo table so solo/duo testing can start. */
 export function roleCounts(total: number): Record<Role, number> {
-  if (total < 5) throw new Error('Need at least 5 players');
+  const demo: Record<number, Record<Role, number>> = {
+    1: { werewolf: 0, seer: 0, doctor: 0, villager: 1 },
+    2: { werewolf: 1, seer: 0, doctor: 0, villager: 1 },
+    3: { werewolf: 1, seer: 1, doctor: 0, villager: 1 },
+    4: { werewolf: 1, seer: 1, doctor: 1, villager: 1 },
+  };
+  if (total < 5) {
+    const out = demo[total];
+    if (!out) throw new Error('Need at least 1 player');
+    return out;
+  }
   const wolves = total >= 11 ? 3 : total >= 7 ? 2 : 1;
   const seer = total >= 6 ? 1 : 0;
   const doctor = total >= 7 ? 1 : 0;

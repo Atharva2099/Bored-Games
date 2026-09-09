@@ -8,6 +8,21 @@ import {
 } from './logic';
 
 describe('roleCounts', () => {
+  it('demo tables let 1-4 players start', () => {
+    expect(roleCounts(1)).toEqual({
+      werewolf: 0,
+      seer: 0,
+      doctor: 0,
+      villager: 1,
+    });
+    expect(roleCounts(2).werewolf).toBe(1);
+    expect(roleCounts(4)).toEqual({
+      werewolf: 1,
+      seer: 1,
+      doctor: 1,
+      villager: 1,
+    });
+  });
   it('scales wolves and support roles', () => {
     expect(roleCounts(5)).toEqual({
       werewolf: 1,

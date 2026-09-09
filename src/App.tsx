@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { AboutFull, AboutLine } from './ui/About';
+import { Landing, SHTeaser, type GamePick } from './ui/Landing';
 import {
   assignRoles,
   checkWinner,
@@ -52,6 +53,7 @@ export default function App() {
     () => params.get('room') ?? localStorage.getItem('bg-room') ?? '',
   );
   const [inRoom, setInRoom] = useState(false);
+  const [selected, setSelected] = useState<GamePick | null>(null);
   const [isHost, setIsHost] = useState(false);
   const [handle, setHandle] = useState<RoomHandle | null>(null);
 
@@ -252,10 +254,11 @@ export default function App() {
   const hostStart = () => {
     if (!handle || !pub) return;
     const ids = pub.players.map((p) => p.peerId);
-    if (ids.length < 5) {
-      alert('Need at least 5 players.');
+    if (ids.length < 1) {
+      alert('Nobody here yet.');
       return;
     }
+    const demo = ids.length < 5;
     const roles = assignRoles(ids);
     rolesRef.current = roles;
     nightRef.current = { wolfTarget: null, doctorSave: null, seerCheck: null, seerBy: null };
@@ -268,7 +271,7 @@ export default function App() {
       phase: 'role',
       players: pub.players.map((p) => ({ ...p, alive: true })),
       dayCount: 1,
-      log: [`Game started with ${ids.length} players. Check your secret role.`],
+      log: [`Game started with ${ids.length} players. Check your secret role.${demo ? ' Demo mode — fewer than 5.' : ''}`],
       votes: {},
       winner: null,
     });
@@ -407,10 +410,21 @@ export default function App() {
   };
 
   // ================= render =================
+  if (!inRoom && selected === null) {
+    return <Landing onPick={setSelected} />;
+  }
+
+  if (!inRoom && selected === 'sh') {
+    return <SHTeaser onBack={() => setSelected(null)} />;
+  }
+
   if (!inRoom) {
     return (
       <div data-game="werewolf" className="min-h-screen flex items-center justify-center p-4">
         <div className="w-full max-w-sm bg-white/5 rounded-2xl p-6 space-y-4 border border-white/10">
+          <button onClick={() => setSelected(null)} className="text-xs text-white/60 underline">
+            ← All games
+          </button>
           <h1 className="text-3xl font-bold">🐺 Bored Games</h1>
           <p className="text-sm text-white/70">
             Werewolf over the internet with a room code. No server, no
@@ -493,7 +507,7 @@ export default function App() {
                   type the code {roomCode} manually.
                 </div>
               )}
-              <div className="mt-1">Need 5+ to start. 7+ adds Seer + Doctor, 11+ adds 3rd wolf.</div>
+              <div className="mt-1">5+ for a full hunt · fewer starts a demo.</div>
             </div>
           </div>
           <ul className="divide-y divide-white/10">
