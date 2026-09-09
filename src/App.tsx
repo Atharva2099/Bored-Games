@@ -406,14 +406,40 @@ export default function App() {
       } catch {
         /* trackers unreachable */
       }
-    }, 2000);
+    }, 1000);
 
     // guest retry: announces are fire-and-forget, so re-announce until the
-    // host's state arrives (covers slow tracker/WebRTC handshakes)
+    // host's state arrives. Aggressive in the first seconds (when the relay
+    // handshake is still warming up), relaxed backoff after.
+    let retries = 0;
+    const announce = () =>
+      sendersRef.current?.sendJoin({ name: myName, client: clientId });
     const retryTimer = setInterval(() => {
-      if (!pubRef.current)
-        sendersRef.current?.sendJoin({ name: myName, client: clientId });
-    }, 3000);
+      if (pubRef.current) {
+        clearInterval(retryTimer);
+        return;
+      }
+      announce();
+      retries++;
+      if (retries === 12) {
+        clearInterval(retryTimer);
+        setInterval(() => {
+          if (!pubRef.current) announce();
+        }, 4000);
+      }
+    }, 1000);
+
+    // phones sleeping in background drop sockets: re-announce the moment
+    // the tab is visible again instead of waiting for the next retry
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!pubRef.current) announce();
+      else if (isHostRef.current && pubRef.current)
+        sendersRef.current?.sendPub(
+          pubRef.current as unknown as Record<string, unknown>,
+        );
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
     // host heartbeat: rebroadcast state so late joiners converge
     const beatTimer = setInterval(() => {
@@ -427,6 +453,7 @@ export default function App() {
       clearInterval(peerTimer);
       clearInterval(retryTimer);
       clearInterval(beatTimer);
+      document.removeEventListener('visibilitychange', onVisible);
     };
 
     if (isHost) {
@@ -475,6 +502,9 @@ export default function App() {
       nightRef.current = { wolfTarget: null, doctorSave: null, seerCheck: null, seerBy: null };
       votesRef.current = {};
       setPub(seed);
+      // announce immediately (relay may still be warming up) + once more
+      // after the handshake has had a moment — whichever lands first wins
+      sendersRef.current?.sendPub(seed as unknown as Record<string, unknown>);
       const t = setTimeout(
         () =>
           sendersRef.current?.sendPub(seed as unknown as Record<string, unknown>),
@@ -489,11 +519,8 @@ export default function App() {
       };
     }
 
-    const t = setTimeout(
-      () =>
-        sendersRef.current?.sendJoin({ name: myName, client: clientId }),
-      600,
-    );
+    announce();
+    const t = setTimeout(() => announce(), 800);
     return () => {
       clearTimeout(t);
       stopTimers();
