@@ -35,11 +35,27 @@ import {
   type RoomHandle,
 } from './net/transport';
 
-const ROLE_META: Record<Role, { label: string; Icon: typeof Moon }> = {
-  werewolf: { label: 'Werewolf', Icon: Moon },
-  seer: { label: 'Seer', Icon: Eye },
-  doctor: { label: 'Doctor', Icon: Syringe },
-  villager: { label: 'Villager', Icon: Wheat },
+const ROLE_META: Record<Role, { label: string; Icon: typeof Moon; blurb: string }> = {
+  werewolf: {
+    label: 'Werewolf',
+    Icon: Moon,
+    blurb: 'Each night, agree with the pack on one victim. By day, blend in and push the vote elsewhere.',
+  },
+  seer: {
+    label: 'Seer',
+    Icon: Eye,
+    blurb: 'Each night, inspect one player to learn their true role. Share carefully — exposure gets you eaten.',
+  },
+  doctor: {
+    label: 'Doctor',
+    Icon: Syringe,
+    blurb: 'Each night, save one player. Saving the wolves\u2019 victim stops the kill.',
+  },
+  villager: {
+    label: 'Villager',
+    Icon: Wheat,
+    blurb: 'No night power. Watch, deduce, and vote by day — your voice is your weapon.',
+  },
 };
 
 const initialPublic = (
@@ -955,6 +971,9 @@ export default function App() {
               )}
             </div>
             {seerSeen && <div className="text-xs text-violet-300 mt-1 flex items-center gap-1"><Eye size={12} /> {seerSeen}</div>}
+            {myRole && (
+              <p className="text-xs text-white/60 mt-1">{ROLE_META[myRole].blurb}</p>
+            )}
             {!alive && <div className="text-sm text-white/60 mt-1">You are dead — watch only.</div>}
           </div>
 
@@ -1066,6 +1085,7 @@ export default function App() {
                   onClick={() => {
                     const vals = Object.values(rolesRef.current);
                     void narrateNight(pub.dayCount, {
+                      wolves: vals.includes('werewolf'),
                       seer: vals.includes('seer'),
                       doctor: vals.includes('doctor'),
                     });
@@ -1137,16 +1157,29 @@ function NightPanel(props: {
               <button
                 key={p.peerId}
                 onClick={() => {
+                  try {
+                    navigator.vibrate?.(15);
+                  } catch {
+                    /* no haptics */
+                  }
                   props.setPicked(p.peerId);
                   props.onAct(myRole === 'werewolf' ? 'wolf' : myRole === 'seer' ? 'see' : 'save', p.peerId);
                 }}
-                className={`rounded-lg px-2 py-1.5 text-sm border ${props.picked === p.peerId ? 'bg-emerald-400 text-black' : 'bg-black/30 border-white/10'}`}
+                className={`rounded px-2 py-1.5 text-sm border ${props.picked === p.peerId ? 'bg-[#92a9e1] text-black' : 'bg-black/30 border-white/10'}`}
               >
                 {p.name}
               </button>
             ))}
           </div>
-          <p className="text-xs text-white/50">Tap to lock. You can change until host resolves.</p>
+          {props.picked ? (
+            <p className="text-xs text-[#92a9e1] flex items-center gap-1">
+              <Check size={12} /> Locked on{' '}
+              {targets.find((t) => t.peerId === props.picked)?.name} — tap
+              another to change before the host resolves.
+            </p>
+          ) : (
+            <p className="text-xs text-white/50">Tap to lock your pick.</p>
+          )}
         </>
       )}
       {myRole === 'villager' && <p className="text-sm text-white/60">Close your eyes… waiting for host to resolve.</p>}
@@ -1173,13 +1206,27 @@ function VotePanel(props: {
           <button
             key={p.peerId}
             disabled={!props.alive || props.phase !== 'vote'}
-            onClick={() => props.onVote(p.peerId)}
-            className={`rounded-lg px-2 py-1.5 text-sm border disabled:opacity-50 ${props.picked === p.peerId ? 'bg-red-400 text-black' : 'bg-black/30 border-white/10'}`}
+            onClick={() => {
+              try {
+                navigator.vibrate?.(15);
+              } catch {
+                /* no haptics */
+              }
+              props.onVote(p.peerId);
+            }}
+            className={`rounded px-2 py-1.5 text-sm border disabled:opacity-50 ${props.picked === p.peerId ? 'bg-red-400 text-black' : 'bg-black/30 border-white/10'}`}
           >
             {p.name} {counts.get(p.peerId) ? `(${counts.get(p.peerId)})` : ''}
           </button>
         ))}
       </div>
+      {props.phase === 'vote' && props.picked && (
+        <p className="text-xs text-red-300 flex items-center gap-1">
+          <Check size={12} /> Voting{' '}
+          {props.players.find((p) => p.peerId === props.picked)?.name} — tap
+          another to switch before the host resolves.
+        </p>
+      )}
     </div>
   );
 }
