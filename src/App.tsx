@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { AboutFull, AboutLine } from './ui/About';
 import {
   assignRoles,
   checkWinner,
@@ -408,7 +409,7 @@ export default function App() {
   // ================= render =================
   if (!inRoom) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div data-game="werewolf" className="min-h-screen flex items-center justify-center p-4">
         <div className="w-full max-w-sm bg-white/5 rounded-2xl p-6 space-y-4 border border-white/10">
           <h1 className="text-3xl font-bold">🐺 Bored Games</h1>
           <p className="text-sm text-white/70">
@@ -432,7 +433,7 @@ export default function App() {
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => join(true, roomCode || makeRoomCode(), name)}
-              className="rounded-xl bg-emerald-400 text-black font-semibold py-2"
+              className="btn-accent"
             >
               Create
             </button>
@@ -447,6 +448,7 @@ export default function App() {
             Tip: Host taps Create, shares the QR/code. Works on Android + iOS
             browsers together.
           </p>
+          <AboutFull />
         </div>
       </div>
     );
@@ -455,7 +457,7 @@ export default function App() {
   const phase = pub?.phase ?? 'lobby';
 
   return (
-    <div className="min-h-screen p-3 max-w-xl mx-auto space-y-3">
+    <div data-game="werewolf" className="min-h-screen p-3 max-w-xl mx-auto space-y-3">
       <header className="flex items-center justify-between">
         <div>
           <div className="font-mono text-lg font-bold">{roomCode}</div>
@@ -493,7 +495,7 @@ export default function App() {
             ))}
           </ul>
           {isHost ? (
-            <button onClick={hostStart} className="w-full rounded-xl bg-emerald-400 text-black font-bold py-2.5">
+            <button onClick={hostStart} className="btn-accent">
               Start game ({pub?.players.length ?? 0})
             </button>
           ) : (
@@ -555,7 +557,7 @@ export default function App() {
             <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center space-y-2">
               <div className="text-3xl">🏆 {pub.winner} win!</div>
               {isHost && (
-                <button onClick={hostRestart} className="w-full rounded-xl bg-emerald-400 text-black font-bold py-2">Back to lobby</button>
+                <button onClick={hostRestart} className="btn-accent">Back to lobby</button>
               )}
             </div>
           )}
@@ -587,6 +589,7 @@ export default function App() {
               {[...pub.log].reverse().map((l, i) => <li key={i}>• {l}</li>)}
             </ul>
           </div>
+          <AboutLine />
         </>
       )}
     </div>

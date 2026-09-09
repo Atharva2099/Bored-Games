@@ -1,7 +1,36 @@
 @import "tailwindcss";
 
+/* Game palettes (see docs/palettes.md for sources).
+   Werewolf  = Lavender Haze #92A9E1 on Soft Graphite #23232b.
+   Secret Hitler = Burnt Peach #FE8254 on Deep Steel Blue #3F5A62.
+   Scope per game with data-game="werewolf" | "secret-hitler". */
+:root,
+[data-game='werewolf'] {
+  --bg: #23232b;
+  --panel: rgba(255, 255, 255, 0.05);
+  --accent: #92a9e1;
+  --accent-ink: #23232b;
+}
+
+[data-game='secret-hitler'] {
+  --bg: #3f5a62;
+  --panel: rgba(255, 255, 255, 0.07);
+  --accent: #fe8254;
+  --accent-ink: #3f5a62;
+}
+
 body {
-  background: #0f0e17;
+  background: var(--bg);
   color: #fffffe;
   font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* Primary action button in the active game's accent color. */
+.btn-accent {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  border-radius: 0.75rem;
+  padding: 0.625rem 1rem;
+  width: 100%;
 }
