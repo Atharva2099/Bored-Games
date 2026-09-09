@@ -91,14 +91,18 @@ export default function App() {
     () => new URLSearchParams(window.location.search),
     [],
   );
-  const [name, setName] = useState(
-    () => localStorage.getItem('bg-name') ?? '',
+  const [name, setName] = useState(() =>
+    // QR arrivals (?room=) get a blank name field; everyone else keeps theirs
+    params.get('room') ? '' : (localStorage.getItem('bg-name') ?? ''),
   );
   const [roomCode, setRoomCode] = useState(
     () => params.get('room') ?? localStorage.getItem('bg-room') ?? '',
   );
   const [inRoom, setInRoom] = useState(false);
-  const [selected, setSelected] = useState<GamePick | null>(null);
+  const [selected, setSelected] = useState<GamePick | null>(() =>
+    // QR arrivals skip the picker and land on the Werewolf join form
+    params.get('room') ? 'werewolf' : null,
+  );
   const [isHost, setIsHost] = useState(false);
   const [handle, setHandle] = useState<RoomHandle | null>(null);
 
