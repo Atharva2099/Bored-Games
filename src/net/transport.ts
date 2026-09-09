@@ -2,6 +2,12 @@ import { joinRoom, selfId } from '@trystero-p2p/nostr';
 import type { Room } from '@trystero-p2p/core';
 import type { Role } from '../game/werewolf/logic';
 import type { Player } from './presence';
+import type {
+  Policy,
+  Power,
+  SHRole,
+  SHWinner,
+} from '../game/secret-hitler/logic';
 
 export type { Player } from './presence';
 
@@ -57,6 +63,8 @@ export interface PublicState {
   winner?: 'villagers' | 'werewolves' | null;
   lastDead?: string | null;
   lastExiled?: string | null;
+  /** lobby game selection; Secret Hitler table mounts when set */
+  game?: 'werewolf' | 'secret-hitler';
   [k: string]: unknown;
 }
 
@@ -78,6 +86,78 @@ export interface ActionMsg {
   /** stable per-browser id; votes are tallied per client, not per peer.
    * Optional at call sites — sendGuestAction fills it in. */
   client?: string;
+  [k: string]: unknown;
+}
+
+// ---------------- Secret Hitler (CC BY-NC-SA 4.0, see
+// src/game/secret-hitler/LICENSE) ----------------
+
+export type SHPhase =
+  | 'nominate'
+  | 'vote'
+  | 'legis-pres'
+  | 'legis-chanc'
+  | 'power'
+  | 'ended';
+
+export interface SHPublic {
+  phase: SHPhase;
+  players: Player[];
+  libTrack: number;
+  fasTrack: number;
+  /** failed elections in a row; 3 triggers chaos auto-enact */
+  tracker: number;
+  drawCount: number;
+  discCount: number;
+  presidentId: string | null;
+  chancellorId: string | null;
+  lastPresidentId: string | null;
+  lastChancellorId: string | null;
+  pendingPower: Power | null;
+  winner: SHWinner | null;
+  /** client -> Ja vote */
+  votes: Record<string, boolean>;
+  vetoOffered: boolean;
+  log: string[];
+  [k: string]: unknown;
+}
+
+/** Private: your role + names of fascists you know (Hitler, or team in 5-6p). */
+export interface SHRoleMsg {
+  role: SHRole;
+  knownNames: string[];
+  [k: string]: unknown;
+}
+
+/** Private tile hands. Peek views are non-destructive copies. */
+export interface SHCardsMsg {
+  cards: Policy[];
+  context: 'pres-draw' | 'chanc-hand' | 'peek';
+  [k: string]: unknown;
+}
+
+/** Private notices (e.g. investigate results). */
+export interface SHInfoMsg {
+  text: string;
+  [k: string]: unknown;
+}
+
+export interface SHActMsg {
+  kind:
+    | 'sync'
+    | 'nominate'
+    | 'vote'
+    | 'pres-discard'
+    | 'chanc-enact'
+    | 'veto-propose'
+    | 'veto-consent'
+    | 'power-target'
+    | 'power-done';
+  targetId?: string | null;
+  index?: number;
+  ja?: boolean;
+  agree?: boolean;
+  client: string;
   [k: string]: unknown;
 }
 

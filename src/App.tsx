@@ -23,6 +23,7 @@ import { logDiag, resetDiag } from './net/diagnostics';
 import { cancelSpeech, narrateNight, speakCue } from './ui/narrate';
 import { RoomFinePrint, WerewolfFinePrint } from './ui/About';
 import { HomeLogo, Landing, SHTeaser, type GamePick } from './ui/Landing';
+import SecretHitler from './ui/SecretHitler';
 import {
   assignRoles,
   checkWinner,
@@ -647,6 +648,42 @@ export default function App() {
     });
   };
 
+  const pickGame = (game: 'werewolf' | 'secret-hitler') => {
+    if (!isHost || !pub) return;
+    sendPubState({ ...pub, game });
+  };
+
+  const startSH = () => {
+    if (!handle || !pub) return;
+    const n = pub.players.length;
+    if (n < 5 || n > 10) {
+      alert('Secret Hitler needs 5-10 players.');
+      return;
+    }
+    sendPubState({
+      ...pub,
+      game: 'secret-hitler',
+      log: [...pub.log, 'Secret Hitler table opening…'].slice(-50),
+    });
+  };
+
+  const exitSH = () => {
+    if (!pub) return;
+    sendPubState({
+      ...pub,
+      game: 'werewolf',
+      phase: 'lobby',
+      players: pub.players.map((p) => ({ ...p, alive: true })),
+      dayCount: 1,
+      votes: {},
+      ready: [],
+      winner: null,
+      lastDead: null,
+      lastExiled: null,
+      log: [...pub.log, 'Back to lobby. Host can start again.'].slice(-50),
+    });
+  };
+
   const hostToNight = () =>
     pub &&
     sendPubState({
@@ -922,6 +959,7 @@ export default function App() {
   }
 
   const phase = pub?.phase ?? 'lobby';
+  const shActive = pub?.game === 'secret-hitler';
 
   return (
     <div data-game="werewolf" className="min-h-screen p-3 lg:p-6 max-w-6xl mx-auto space-y-3">
@@ -976,7 +1014,18 @@ export default function App() {
         </div>
       </header>
 
-      {phase === 'lobby' && (
+      {shActive && pub && handle ? (
+        <SecretHitler
+          handle={handle}
+          roomCode={roomCode}
+          name={name}
+          isHost={isHost}
+          initialRoster={pub.players}
+          onExit={exitSH}
+        />
+      ) : (
+        <>
+          {phase === 'lobby' && (
         <div className="panel cut space-y-3 lg:grid lg:grid-cols-2 lg:gap-6 max-w-4xl">
           <div className="flex gap-3 items-center">
             <div className="bg-white p-2 rounded">
@@ -992,7 +1041,11 @@ export default function App() {
                   type the code {roomCode} manually.
                 </div>
               )}
-              <div className="mt-1">5+ for a full hunt · fewer starts a demo.</div>
+              <div className="mt-1">
+                {(pub?.game ?? 'werewolf') === 'secret-hitler'
+                  ? 'Secret Hitler needs 5-10 players.'
+                  : '5+ for a full hunt · fewer starts a demo.'}
+              </div>
             </div>
           </div>
           <ul className="divide-y divide-white/10">
@@ -1029,11 +1082,46 @@ export default function App() {
             </div>
           )}
           {isHost ? (
-            <button onClick={hostStart} className="btn-accent lg:col-span-2">
-              Start game ({pub?.players.length ?? 0})
-            </button>
+            <div className="lg:col-span-2 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => pickGame('werewolf')}
+                  className={`rounded px-2 py-2 text-sm font-bold border ${
+                    (pub?.game ?? 'werewolf') === 'werewolf'
+                      ? 'bg-[#92a9e1] text-black border-transparent'
+                      : 'bg-black/30 border-white/15 text-white/70'
+                  }`}
+                >
+                  Werewolf
+                </button>
+                <button
+                  onClick={() => pickGame('secret-hitler')}
+                  className={`rounded px-2 py-2 text-sm font-bold border ${
+                    pub?.game === 'secret-hitler'
+                      ? 'bg-[#fe8254] text-black border-transparent'
+                      : 'bg-black/30 border-white/15 text-white/70'
+                  }`}
+                >
+                  Secret Hitler
+                </button>
+              </div>
+              {pub?.game === 'secret-hitler' ? (
+                <button onClick={startSH} className="btn-accent">
+                  Start Secret Hitler ({pub?.players.length ?? 0})
+                </button>
+              ) : (
+                <button onClick={hostStart} className="btn-accent">
+                  Start game ({pub?.players.length ?? 0})
+                </button>
+              )}
+            </div>
           ) : (
-            <p className="text-sm text-white/60 lg:col-span-2">Waiting for host to start…</p>
+            <p className="text-sm text-white/60 lg:col-span-2">
+              Waiting for host to start…
+              {pub?.game === 'secret-hitler'
+                ? ' Secret Hitler table opening.'
+                : ''}
+            </p>
           )}
         </div>
       )}
@@ -1241,6 +1329,8 @@ export default function App() {
           <RoomFinePrint game="werewolf" />
           </div>
         </div>
+      )}
+        </>
       )}
       {showHelp && <HowToOverlay onClose={() => setShowHelp(false)} />}
       {showDiag && <DiagnosticsOverlay onClose={() => setShowDiag(false)} />}
