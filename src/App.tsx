@@ -11,8 +11,8 @@ import {
   Vote,
   Wheat,
 } from 'lucide-react';
-import { AboutFull, AboutLine } from './ui/About';
-import { Landing, SHTeaser, type GamePick } from './ui/Landing';
+import { RoomFinePrint, WerewolfFinePrint } from './ui/About';
+import { HomeLogo, Landing, SHTeaser, type GamePick } from './ui/Landing';
 import {
   assignRoles,
   checkWinner,
@@ -440,9 +440,12 @@ export default function App() {
     return (
       <div data-game="werewolf" className="min-h-screen flex items-center justify-center p-4">
         <div className="w-full max-w-sm bg-white/5 rounded-2xl p-6 space-y-4 border border-white/10">
-          <button onClick={() => setSelected(null)} className="text-xs text-white/60 underline">
-            ← All games
-          </button>
+          <div className="flex items-center justify-between">
+            <HomeLogo onHome={() => setSelected(null)} />
+            <button onClick={() => setSelected(null)} className="text-xs text-white/60 underline">
+              All games
+            </button>
+          </div>
           <h1 className="font-display text-4xl flex items-center gap-2"><Moon size={30} /> Werewolf</h1>
           <p className="text-sm text-white/70">
             Werewolf over the internet with a room code. No server, no
@@ -480,7 +483,7 @@ export default function App() {
             Tip: Host taps Create, shares the QR/code. Works on Android + iOS
             browsers together.
           </p>
-          <AboutFull />
+          <WerewolfFinePrint />
         </div>
       </div>
     );
@@ -491,10 +494,22 @@ export default function App() {
   return (
     <div data-game="werewolf" className="min-h-screen p-3 max-w-xl mx-auto space-y-3">
       <header className="flex items-center justify-between">
-        <div>
-          <div className="font-mono text-lg font-bold">{roomCode}</div>
-          <div className="text-xs text-white/60">
-            {isHost ? 'You are HOST' : `You are ${name}`} · {pub?.players.length ?? 0} players
+        <div className="flex items-center gap-2">
+          <HomeLogo
+            size={26}
+            onHome={() => {
+              if (window.confirm('Leave game and go home?')) {
+                handle?.leave();
+                window.location.search = '';
+                window.location.reload();
+              }
+            }}
+          />
+          <div>
+            <div className="font-mono text-lg font-bold">{roomCode}</div>
+            <div className="text-xs text-white/60">
+              {isHost ? 'You are HOST' : `You are ${name}`} · {pub?.players.length ?? 0} players
+            </div>
           </div>
         </div>
         <button
@@ -639,7 +654,7 @@ export default function App() {
               {[...pub.log].reverse().map((l, i) => <li key={i}>• {l}</li>)}
             </ul>
           </div>
-          <AboutLine />
+          <RoomFinePrint game="werewolf" />
         </>
       )}
     </div>

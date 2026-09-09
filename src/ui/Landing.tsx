@@ -1,4 +1,21 @@
+import { SHFinePrint } from './About';
+
 export type GamePick = 'werewolf' | 'sh';
+
+/** Brand mark that always leads home. */
+export function HomeLogo({ onHome, size = 30 }: { onHome: () => void; size?: number }) {
+  return (
+    <button onClick={onHome} aria-label="Home" className="shrink-0">
+      <img
+        src="./apple-touch-icon.png"
+        alt="Bored Games home"
+        width={size}
+        height={size}
+        className="rounded-lg"
+      />
+    </button>
+  );
+}
 
 const display = {
   fontFamily: "'Anton', Impact, 'Arial Narrow', sans-serif",
@@ -22,8 +39,9 @@ export function Landing({ onPick }: { onPick: (g: GamePick) => void }) {
               'repeating-linear-gradient(115deg, transparent 0 14px, #e10600 14px 15px)',
           }}
         />
-        <header className="relative px-5 pt-10 pb-6">
-          <div className="text-xs tracking-[0.35em] text-[#e10600] font-bold">
+        <header className="relative px-5 pt-6 pb-6">
+          <HomeLogo onHome={() => window.scrollTo({ top: 0 })} />
+          <div className="text-xs tracking-[0.35em] text-[#e10600] font-bold mt-4">
             SOCIAL DEDUCTION DEN
           </div>
           <h1
@@ -145,9 +163,12 @@ export function SHTeaser({ onBack }: { onBack: () => void }) {
       style={{ background: '#3f5a62' }}
     >
       <div className="w-full max-w-sm rounded-2xl p-6 space-y-4 border border-white/15 bg-black/30">
-        <button onClick={onBack} className="text-xs text-white/60 underline">
-          ← All games
-        </button>
+        <div className="flex items-center justify-between">
+          <HomeLogo onHome={onBack} size={26} />
+          <button onClick={onBack} className="text-xs text-white/60 underline">
+            All games
+          </button>
+        </div>
         <h1
           className="text-3xl uppercase"
           style={{ fontFamily: "'Anton', Impact, sans-serif" }}
@@ -167,9 +188,7 @@ export function SHTeaser({ onBack }: { onBack: () => void }) {
             see <code>docs/secret-hitler.md</code>.
           </p>
         </div>
-        <div className="text-xs text-white/50">
-          CC BY–NC–SA 4.0 · Goat, Wolf, &amp; Cabbage · secrethitler.com
-        </div>
+        <SHFinePrint />
       </div>
     </div>
   );
