@@ -1,8 +1,36 @@
 import { joinRoom, selfId } from '@trystero-p2p/nostr';
-import type { Room } from '@trystero-p2p/core';
+import type { Room, TurnServerConfig } from '@trystero-p2p/core';
 import type { Role } from '../game/werewolf/logic';
 
 export const APP_ID = 'bored-games-werewolf-v1';
+
+// Trystero picks its 5 relays by hashing appId, so every user of this app
+// would otherwise get the same 5 (mostly hobby) relays forever. Pin the
+// high-uptime public ones instead.
+export const RELAY_URLS = [
+  'wss://relay.damus.io',
+  'wss://nos.lol',
+  'wss://relay.primal.net',
+  'wss://relay.snort.social',
+  'wss://nostr.wine',
+];
+
+// Trystero's ICE defaults are STUN-only, which cannot connect two peers
+// that are both behind symmetric NAT (i.e. most phones on carrier data).
+// OpenRelay is free, needs no account, and publishes these credentials
+// deliberately. Port 443/TCP is the variant that survives restrictive wifi.
+const TURN_SERVERS: TurnServerConfig[] = [
+  {
+    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:80',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+];
 
 export interface JoinMsg {
   name: string;
@@ -54,9 +82,21 @@ export interface RoomHandle {
   leave: () => void;
 }
 
-export function createRoom(roomId: string): RoomHandle {
+export function createRoom(roomId: string, isHost: boolean): RoomHandle {
   // The room code IS the password: only devices holding the QR/link can
   // even complete a handshake. No server, no accounts, no keys to steal.
-  const room = joinRoom({ appId: APP_ID, password: `bg1:${roomId}` }, roomId);
+  // passive: !isHost gives a star topology (guests connect only to the
+  // host, never to each other) — safe here because guests never talk to
+  // each other, only to the host.
+  const room = joinRoom(
+    {
+      appId: APP_ID,
+      password: `bg1:${roomId}`,
+      passive: !isHost,
+      turnConfig: TURN_SERVERS,
+      relayConfig: { urls: RELAY_URLS },
+    },
+    roomId,
+  );
   return { room, selfId, leave: () => void room.leave() };
 }

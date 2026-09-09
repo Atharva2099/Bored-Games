@@ -25,3 +25,9 @@ coverage
 *.njsproj
 *.sln
 *.sw?
+
+# Claude Code / agent session artifacts
+.claude_session
+.claude/
+.claude-*
+CLAUDE.local.md

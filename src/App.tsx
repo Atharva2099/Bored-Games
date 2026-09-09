@@ -183,7 +183,7 @@ export default function App() {
     const sess = { room: cleanCode, name: cleanName, isHost: host };
     localStorage.setItem('bg-session', JSON.stringify(sess));
     setSession(sess);
-    const h = createRoom(cleanCode);
+    const h = createRoom(cleanCode, host);
     setHandle(h);
     setRoomCode(cleanCode);
     setIsHost(host);
@@ -948,7 +948,15 @@ export default function App() {
             ))}
           </ul>
           <div className="text-xs text-white/50">
-            Signal: {peerCount} peer{peerCount === 1 ? '' : 's'} connected · {roomCode}
+            {/* Guests are passive: they peer only with the host, so a raw
+                peer count would always read 1. Show link health instead. */}
+            Signal:{' '}
+            {isHost
+              ? `${peerCount} peer${peerCount === 1 ? '' : 's'} connected`
+              : peerCount > 0
+                ? 'connected to host'
+                : 'connecting…'}{' '}
+            · {roomCode}
           </div>
           {!isHost && (pub?.players.length ?? 0) === 0 && (
             <div className="text-sm text-amber-200/90 space-y-2">
