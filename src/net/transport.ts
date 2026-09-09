@@ -17,6 +17,10 @@ export interface PublicState {
   dayCount: number;
   log: string[];
   votes?: Record<string, string>;
+  /** clients that tapped "ready" during the role phase */
+  ready?: string[];
+  /** night picks landed so far (host checklist; no targets revealed) */
+  night?: { wolf: boolean; save: boolean; see: boolean };
   winner?: 'villagers' | 'werewolves' | null;
   lastDead?: string | null;
   lastExiled?: string | null;
@@ -34,7 +38,7 @@ export interface SeerMsg {
 }
 
 export interface ActionMsg {
-  kind: 'night' | 'vote';
+  kind: 'night' | 'vote' | 'ready';
   nightKind?: 'wolf' | 'save' | 'see';
   targetId: string | null;
   fromName: string;

@@ -36,11 +36,27 @@ body {
   font-family: 'Pirata One', 'Anton', Impact, serif;
   letter-spacing: 0.02em;
 }
+/* Sharp vanta panels for in-room game screens. */
+.panel {
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 1rem;
+}
+
+/* Pointy cut corner. Pair with .panel or borders. */
+.cut {
+  border-radius: 0;
+  clip-path: polygon(
+    12px 0, 100% 0, 100% calc(100% - 12px),
+    calc(100% - 12px) 100%, 0 100%, 0 12px
+  );
+}
+
 .btn-accent {
   background: var(--accent);
   color: var(--accent-ink);
   font-weight: 700;
-  border-radius: 0.75rem;
+  border-radius: 3px;
   padding: 0.625rem 1rem;
   width: 100%;
   box-shadow: 0 0 24px rgba(146, 169, 225, 0.35);
@@ -48,4 +64,53 @@ body {
 
 [data-game='secret-hitler'] .btn-accent {
   box-shadow: 0 0 24px rgba(254, 130, 84, 0.35);
+}
+
+/* Phase change entrance. Re-mount with key={phase} to replay. */
+.phase-enter {
+  animation: phase-in 0.45s ease both;
+}
+
+@keyframes phase-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) skewX(-2deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Breathing moon for night headers. */
+.moon-pulse {
+  animation: moon-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes moon-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.86);
+  }
+}
+
+/* Daybreak sweep bar for dawn headers. */
+.daybreak {
+  height: 3px;
+  background: linear-gradient(90deg, #e10600, #92a9e1, transparent);
+  background-size: 200% 100%;
+  animation: daybreak 3s linear infinite;
+}
+
+@keyframes daybreak {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
 }

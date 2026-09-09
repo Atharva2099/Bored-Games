@@ -1,17 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
+  Check,
   Eye,
+  Info,
   Moon,
   Skull,
   Sun,
   Syringe,
   Trophy,
   User,
+  Volume2,
+  VolumeX,
   Vote,
   Wheat,
   X,
 } from 'lucide-react';
+import { HowToOverlay } from './ui/HowTo';
+import { cancelSpeech, narrateNight, speakCue } from './ui/narrate';
 import { RoomFinePrint, WerewolfFinePrint } from './ui/About';
 import { HomeLogo, Landing, SHTeaser, type GamePick } from './ui/Landing';
 import {
@@ -122,6 +128,10 @@ export default function App() {
   const [seerSeen, setSeerSeen] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(() => loadSession());
+  const [sound, setSound] = useState(
+    () => localStorage.getItem('bg-sound') !== '0',
+  );
+  const [showHelp, setShowHelp] = useState(false);
   const clientId = useMemo(() => getClientId(), []);
 
   const rolesRef = useRef<Record<string, Role>>({});
@@ -301,12 +311,31 @@ export default function App() {
             nightRef.current.seerCheck = m.targetId;
             nightRef.current.seerBy = peerId;
           }
+          // checklist for the host panel (flags only, targets stay secret)
+          const n = nightRef.current;
+          const cur = pubRef.current;
+          if (cur)
+            broadcast({
+              ...cur,
+              night: {
+                wolf: n.wolfTarget != null,
+                save: n.doctorSave != null,
+                see: n.seerCheck != null,
+              },
+            });
         }
         if (m.kind === 'vote' && m.targetId) {
           votesRef.current[voter] = m.targetId;
           const cur = pubRef.current;
           if (cur)
             broadcast({ ...cur, votes: { ...votesRef.current } });
+        }
+        if (m.kind === 'ready') {
+          const cur = pubRef.current;
+          if (cur && cur.phase === 'role') {
+            const ready = [...new Set([...(cur.ready ?? []), voter])];
+            broadcast({ ...cur, ready });
+          }
         }
       },
     });
@@ -479,6 +508,27 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pub]);
 
+  // spoken phase cues on every device (each user already tapped around,
+  // so autoplay policies are satisfied after the first interaction)
+  const phaseForCue = pub?.phase;
+  useEffect(() => {
+    if (!inRoom || !sound || !pub || phaseForCue === 'lobby') return;
+    if (phaseForCue === 'role') speakCue('Check your secret role.');
+    else if (phaseForCue === 'night')
+      speakCue(`Night ${pub.dayCount}. Close your eyes.`);
+    else if (phaseForCue === 'day') {
+      const dead = pub.players.find((p) => p.peerId === pub.lastDead);
+      speakCue(
+        dead
+          ? `Day ${pub.dayCount}. ${dead.name} was killed.`
+          : `Day ${pub.dayCount}. Nobody died.`,
+      );
+    } else if (phaseForCue === 'vote') speakCue('Vote now.');
+    else if (phaseForCue === 'ended' && pub.winner)
+      speakCue(`${pub.winner} win.`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phaseForCue]);
+
   // ---------- host actions ----------
   const sendPubState = (p: PublicState) => {
     setPub(p);
@@ -507,6 +557,8 @@ export default function App() {
       dayCount: 1,
       log: [`Game started with ${ids.length} players. Check your secret role.${demo ? ' Demo mode — fewer than 5.' : ''}`],
       votes: {},
+      ready: [],
+      night: { wolf: false, save: false, see: false },
       winner: null,
     });
   };
@@ -517,6 +569,8 @@ export default function App() {
       ...pub,
       phase: 'night',
       votes: {},
+      ready: [],
+      night: { wolf: false, save: false, see: false },
       log: [...pub.log, `Night ${pub.dayCount} falls…`].slice(-50),
     });
 
@@ -609,6 +663,7 @@ export default function App() {
     nightRef.current = { wolfTarget: null, doctorSave: null, seerCheck: null, seerBy: null };
     setMyRole(null);
     setSeerSeen(null);
+    localStorage.removeItem('bg-myrole');
     sendPubState({
       ...pub,
       phase: 'lobby',
@@ -634,6 +689,17 @@ export default function App() {
           nightRef.current.seerCheck = full.targetId;
           nightRef.current.seerBy = handle.selfId;
         }
+        const n = nightRef.current;
+        if (pub)
+          sendPubState({
+            ...pub,
+            night: {
+              wolf: n.wolfTarget != null,
+              save: n.doctorSave != null,
+              see: n.seerCheck != null,
+            },
+          });
+        return;
       }
       if (full.kind === 'vote' && full.targetId) {
         votesRef.current[clientId] = full.targetId;
@@ -645,8 +711,22 @@ export default function App() {
   };
 
   const leaveRoom = () => {
+    cancelSpeech();
     handle?.leave();
+    // intentional leave wipes everything: session, role, host table save.
+    // A plain refresh keeps all of these, so refresh never throws you out.
     localStorage.removeItem('bg-session');
+    localStorage.removeItem('bg-myrole');
+    try {
+      const keys: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('bg-host-')) keys.push(k);
+      }
+      keys.forEach((k) => localStorage.removeItem(k));
+    } catch {
+      /* ignore */
+    }
     setSession(null);
     window.location.search = '';
     window.location.reload();
@@ -695,8 +775,9 @@ export default function App() {
 
   if (!inRoom) {
     return (
-      <div data-game="werewolf" className="min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-white/5 rounded-2xl p-6 space-y-4 border border-white/10">
+      <>
+        <div data-game="werewolf" className="min-h-screen flex items-center justify-center p-4">
+        <div className="w-full max-w-sm bg-white/5 cut p-6 space-y-4 border border-white/10">
           <div className="flex items-center justify-between">
             <HomeLogo onHome={() => setSelected(null)} />
             <button onClick={() => setSelected(null)} className="text-xs text-white/60 underline">
@@ -731,25 +812,30 @@ export default function App() {
             </button>
             <button
               onClick={() => roomCode.trim() && join(false, roomCode, name)}
-              className="rounded-xl bg-white text-black font-semibold py-2"
+              className="rounded bg-white text-black font-semibold py-2"
             >
               Join
             </button>
           </div>
           <p className="text-xs text-white/50">
             Tip: Host taps Create, shares the QR/code. Works on Android + iOS
-            browsers together.
+            browsers together.{' '}
+            <button onClick={() => setShowHelp(true)} className="underline">
+              How to play
+            </button>
           </p>
           <WerewolfFinePrint />
         </div>
       </div>
+      {showHelp && <HowToOverlay onClose={() => setShowHelp(false)} />}
+      </>
     );
   }
 
   const phase = pub?.phase ?? 'lobby';
 
   return (
-    <div data-game="werewolf" className="min-h-screen p-3 max-w-xl mx-auto space-y-3">
+    <div data-game="werewolf" className="min-h-screen p-3 lg:p-6 max-w-6xl mx-auto space-y-3">
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <HomeLogo
@@ -765,18 +851,39 @@ export default function App() {
             </div>
           </div>
         </div>
-        <button
-          onClick={leaveRoom}
-          className="text-xs border border-white/15 rounded-lg px-2 py-1 text-white/70"
-        >
-          Leave
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => {
+              const next = !sound;
+              setSound(next);
+              localStorage.setItem('bg-sound', next ? '1' : '0');
+              if (!next) cancelSpeech();
+            }}
+            aria-label="Toggle narration"
+            className="text-white/70 border border-white/15 rounded px-2 py-1"
+          >
+            {sound ? <Volume2 size={14} /> : <VolumeX size={14} />}
+          </button>
+          <button
+            onClick={() => setShowHelp(true)}
+            aria-label="How to play"
+            className="text-white/70 border border-white/15 rounded px-2 py-1"
+          >
+            <Info size={14} />
+          </button>
+          <button
+            onClick={leaveRoom}
+            className="text-xs border border-white/15 rounded px-2 py-1 text-white/70"
+          >
+            Leave
+          </button>
+        </div>
       </header>
 
       {phase === 'lobby' && (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+        <div className="panel cut space-y-3 lg:grid lg:grid-cols-2 lg:gap-6 max-w-4xl">
           <div className="flex gap-3 items-center">
-            <div className="bg-white p-2 rounded-xl">
+            <div className="bg-white p-2 rounded">
               <QRCodeSVG value={joinUrl(roomCode)} size={110} />
             </div>
             <div className="text-sm text-white/75">
@@ -817,18 +924,19 @@ export default function App() {
             </div>
           )}
           {isHost ? (
-            <button onClick={hostStart} className="btn-accent">
+            <button onClick={hostStart} className="btn-accent lg:col-span-2">
               Start game ({pub?.players.length ?? 0})
             </button>
           ) : (
-            <p className="text-sm text-white/60">Waiting for host to start…</p>
+            <p className="text-sm text-white/60 lg:col-span-2">Waiting for host to start…</p>
           )}
         </div>
       )}
 
       {phase !== 'lobby' && pub && (
-        <>
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-5 lg:items-start">
+          <div key={phase} className="phase-enter space-y-3 lg:space-y-4">
+          <div className="bg-white/5 border border-white/10 cut p-4">
             <div className="text-xs uppercase text-white/50">Your role</div>
             <div className="font-display text-3xl flex items-center gap-2">
               {myRole ? (
@@ -851,11 +959,44 @@ export default function App() {
           </div>
 
           {phase === 'role' && (
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
-              <p className="text-sm text-white/70">Memorize your role. Host starts the first night when all are ready.</p>
-              {isHost && (
-                <button onClick={hostToNight} className="w-full rounded-xl bg-white text-black font-bold py-2">Start Night 1</button>
-              )}
+            <div className="bg-white/5 border border-white/10 cut p-4 space-y-2">
+              <p className="text-sm text-white/70">Memorize your role, then mark ready. The host starts the first night.</p>
+              {(() => {
+                const aliveIds = pub.players.filter((p) => p.alive);
+                const readyCount =
+                  (pub.ready?.length ?? 0) + (isHost ? 1 : 0);
+                const amIReady =
+                  isHost || (pub.ready ?? []).includes(clientId);
+                return (
+                  <>
+                    <div className="text-xs text-white/60">
+                      {readyCount}/{aliveIds.length} ready
+                    </div>
+                    {!isHost && alive && !amIReady && (
+                      <button
+                        onClick={() =>
+                          sendGuestAction({
+                            kind: 'ready',
+                            targetId: null,
+                            fromName: name,
+                          })
+                        }
+                        className="btn-accent"
+                      >
+                        I'm ready
+                      </button>
+                    )}
+                    {!isHost && alive && amIReady && (
+                      <div className="text-sm text-white/60 flex items-center gap-1">
+                        <Check size={14} /> Ready — waiting for the host…
+                      </div>
+                    )}
+                    {isHost && (
+                      <button onClick={hostToNight} className="w-full rounded bg-white text-black font-bold py-2">Start Night 1</button>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
 
@@ -887,7 +1028,7 @@ export default function App() {
           )}
 
           {phase === 'ended' && (
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center space-y-2">
+            <div className="bg-white/5 border border-white/10 cut p-4 text-center space-y-2">
               <div className="font-display text-3xl flex items-center justify-center gap-2"><Trophy size={28} /> {pub.winner} win!</div>
               {isHost && (
                 <button onClick={hostRestart} className="btn-accent">Back to lobby</button>
@@ -896,16 +1037,57 @@ export default function App() {
           )}
 
           {isHost && phase === 'night' && (
-            <button onClick={hostResolveNight} className="w-full rounded-xl bg-amber-300 text-black font-bold py-2.5">Resolve night → Day</button>
+            <div className="panel cut space-y-2">
+              <div className="text-xs uppercase text-white/50">Night desk — picks landed</div>
+              {(() => {
+                const vals = Object.values(rolesRef.current);
+                const rows: { key: 'wolf' | 'save' | 'see'; label: string }[] = [];
+                if (vals.includes('werewolf')) rows.push({ key: 'wolf', label: 'Wolves decided' });
+                if (vals.includes('doctor')) rows.push({ key: 'save', label: 'Doctor saved' });
+                if (vals.includes('seer')) rows.push({ key: 'see', label: 'Seer peeked' });
+                const flags = pub.night ?? { wolf: false, save: false, see: false };
+                return (
+                  <ul className="text-sm space-y-1">
+                    {rows.map((r) => (
+                      <li key={r.key} className="flex items-center gap-2 text-white/80">
+                        {flags[r.key] ? (
+                          <Check size={14} className="text-[#92a9e1]" />
+                        ) : (
+                          <span className="inline-block h-3.5 w-3.5 border border-white/30" />
+                        )}
+                        {r.label}
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    const vals = Object.values(rolesRef.current);
+                    void narrateNight(pub.dayCount, {
+                      seer: vals.includes('seer'),
+                      doctor: vals.includes('doctor'),
+                    });
+                  }}
+                  className="rounded border border-white/20 py-2 text-sm font-semibold"
+                >
+                  Narrate night
+                </button>
+                <button onClick={hostResolveNight} className="rounded bg-amber-300 text-black font-bold py-2 text-sm">Resolve → Day</button>
+              </div>
+            </div>
           )}
           {isHost && phase === 'day' && (
-            <button onClick={hostToVote} className="w-full rounded-xl bg-white text-black font-bold py-2.5">Go to vote</button>
+            <button onClick={hostToVote} className="w-full rounded bg-white text-black font-bold py-2.5">Go to vote</button>
           )}
           {isHost && phase === 'vote' && (
-            <button onClick={hostResolveVote} className="w-full rounded-xl bg-amber-300 text-black font-bold py-2.5">Resolve vote → Night</button>
+            <button onClick={hostResolveVote} className="w-full rounded bg-amber-300 text-black font-bold py-2.5">Resolve vote → Night</button>
           )}
+          </div>
+          <div className="space-y-3 lg:space-y-4 lg:sticky lg:top-4 mt-3 lg:mt-0">
 
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-3">
+          <div className="bg-white/5 border border-white/10 cut p-3">
             <div className="text-xs uppercase text-white/50 mb-1">Players</div>
             <ul className="text-sm space-y-1">
               {pub.players.map((p) => (
@@ -916,15 +1098,17 @@ export default function App() {
             </ul>
           </div>
 
-          <div className="bg-black/30 border border-white/10 rounded-2xl p-3">
+          <div className="bg-black/30 border border-white/10 cut p-3">
             <div className="text-xs uppercase text-white/50 mb-1">Game log · Day {pub.dayCount}</div>
             <ul className="text-xs space-y-1 text-white/75 max-h-40 overflow-auto">
               {[...pub.log].reverse().map((l, i) => <li key={i}>• {l}</li>)}
             </ul>
           </div>
           <RoomFinePrint game="werewolf" />
-        </>
+          </div>
+        </div>
       )}
+      {showHelp && <HowToOverlay onClose={() => setShowHelp(false)} />}
     </div>
   );
 }
@@ -942,9 +1126,9 @@ function NightPanel(props: {
   if (!alive) return <div className="text-sm text-white/60">You are dead. Waiting for dawn…</div>;
   if (!myRole) return <div className="text-sm text-white/60">Waiting for role…</div>;
   return (
-    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+    <div className="bg-white/5 border border-white/10 cut p-4 space-y-2">
       <div className="font-semibold flex items-center gap-2">
-        <Moon size={16} /> Night — {myRole === 'werewolf' ? 'pick a kill' : myRole === 'seer' ? 'pick to inspect' : myRole === 'doctor' ? 'pick to save' : 'sleep… villagers wait'}
+        <Moon size={16} className="moon-pulse" /> Night — {myRole === 'werewolf' ? 'pick a kill' : myRole === 'seer' ? 'pick to inspect' : myRole === 'doctor' ? 'pick to save' : 'sleep… villagers wait'}
       </div>
       {myRole !== 'villager' && (
         <>
@@ -981,8 +1165,9 @@ function VotePanel(props: {
   const counts = new Map<string, number>();
   Object.values(props.votes).forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1));
   return (
-    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+    <div className="bg-white/5 border border-white/10 cut p-4 space-y-2">
       <div className="font-semibold flex items-center gap-2">{props.phase === 'day' ? <><Sun size={16} /> Day — discuss, then host opens vote</> : <><Vote size={16} /> Vote — tap to exile</>}</div>
+      {props.phase === 'day' && <div className="daybreak" />}
       <div className="grid grid-cols-2 gap-2">
         {props.players.filter((p) => p.alive).map((p) => (
           <button
