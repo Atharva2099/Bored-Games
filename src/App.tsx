@@ -5,6 +5,7 @@ import {
   Eye,
   Info,
   Moon,
+  Radio,
   Skull,
   Sun,
   Syringe,
@@ -17,6 +18,8 @@ import {
   X,
 } from 'lucide-react';
 import { HowToOverlay } from './ui/HowTo';
+import { DiagnosticsOverlay } from './ui/Diagnostics';
+import { logDiag, resetDiag } from './net/diagnostics';
 import { cancelSpeech, narrateNight, speakCue } from './ui/narrate';
 import { RoomFinePrint, WerewolfFinePrint } from './ui/About';
 import { HomeLogo, Landing, SHTeaser, type GamePick } from './ui/Landing';
@@ -156,6 +159,7 @@ export default function App() {
     () => localStorage.getItem('bg-sound') !== '0',
   );
   const [showHelp, setShowHelp] = useState(false);
+  const [showDiag, setShowDiag] = useState(false);
   const [hostLost, setHostLost] = useState(false);
   const clientId = useMemo(() => getClientId(), []);
 
@@ -188,12 +192,14 @@ export default function App() {
   const join = (host: boolean, code: string, playerName: string) => {
     const cleanName = playerName.trim().slice(0, 20) || 'Player';
     const cleanCode = code.trim().toUpperCase() || makeRoomCode();
+    resetDiag();
+    logDiag('join', `${host ? 'as host' : 'as guest'} ${cleanCode}`);
     localStorage.setItem('bg-name', cleanName);
     localStorage.setItem('bg-room', cleanCode);
     const sess = { room: cleanCode, name: cleanName, isHost: host };
     localStorage.setItem('bg-session', JSON.stringify(sess));
     setSession(sess);
-    const h = createRoom(cleanCode, host);
+    const h = createRoom(cleanCode, host, (e) => logDiag('join-error', e.error));
     setHandle(h);
     setRoomCode(cleanCode);
     setIsHost(host);
@@ -205,6 +211,7 @@ export default function App() {
   useEffect(() => {
     if (!inRoom || !handle) return;
     const { room, selfId } = handle;
+    logDiag('room-created');
     const myName = localStorage.getItem('bg-name') ?? 'Player';
 
     const broadcast = (p: PublicState) => {
@@ -237,6 +244,7 @@ export default function App() {
       if (!isHostRef.current) return;
       const msg = data as { name?: string; client?: string };
       const msgName = (msg?.name as string) ?? 'Player';
+      logDiag('join-msg', `${msgName} ${peerId}`);
       const client = (msg?.client as string) ?? peerId;
       peerToClient.current[peerId] = client;
       const prevPeer = clientToPeer.current[client];
@@ -297,6 +305,7 @@ export default function App() {
       onMessage: (data: any) => {
         lastPubAtRef.current = Date.now();
         const incoming = data as unknown as PublicState;
+        logDiag('pub-recv', 'players=' + (incoming.players?.length ?? 0));
         setPub({ ...incoming, players: normalize(incoming.players) });
       },
     });
@@ -382,6 +391,7 @@ export default function App() {
     };
 
     room.onPeerJoin = (peerId: string) => {
+      logDiag('peer-join', peerId);
       // tell newcomer who we are; host will add us to roster
       sendersRef.current?.sendJoin({ name: myName, client: clientId }, peerId);
       // host also pushes current state directly to the newcomer
@@ -392,6 +402,7 @@ export default function App() {
         );
     };
     room.onPeerLeave = (peerId: string) => {
+      logDiag('peer-leave', peerId);
       if (!isHostRef.current) return;
       setPub((prev) => {
         if (!prev) return prev;
@@ -416,9 +427,15 @@ export default function App() {
     // connection diagnostics: live peer count for the lobby signal readout,
     // and (guests only) detect a host that's gone silent so we can surface
     // it instead of staring at a stale board.
+    let lastPeerCount = -1;
     const peerTimer = setInterval(() => {
       try {
-        setPeerCount(Object.keys(room.getPeers()).length);
+        const n = Object.keys(room.getPeers()).length;
+        if (n !== lastPeerCount) {
+          lastPeerCount = n;
+          logDiag('peers', String(n));
+        }
+        setPeerCount(n);
       } catch {
         /* trackers unreachable */
       }
@@ -433,8 +450,10 @@ export default function App() {
     // handshake is still warming up), relaxed backoff after.
     let retries = 0;
     let slowRetryTimer: ReturnType<typeof setInterval> | null = null;
-    const announce = () =>
+    const announce = () => {
+      logDiag('announce');
       sendersRef.current?.sendJoin({ name: myName, client: clientId });
+    };
     const retryTimer = setInterval(() => {
       if (pubRef.current) {
         clearInterval(retryTimer);
@@ -888,11 +907,16 @@ export default function App() {
             <button onClick={() => setShowHelp(true)} className="underline">
               How to play
             </button>
+            {' · '}
+            <button onClick={() => setShowDiag(true)} className="underline">
+              Diagnostics
+            </button>
           </p>
           <WerewolfFinePrint />
         </div>
       </div>
       {showHelp && <HowToOverlay onClose={() => setShowHelp(false)} />}
+      {showDiag && <DiagnosticsOverlay onClose={() => setShowDiag(false)} />}
       </>
     );
   }
@@ -935,6 +959,13 @@ export default function App() {
             className="text-white/70 border border-white/15 rounded px-2 py-1"
           >
             <Info size={14} />
+          </button>
+          <button
+            onClick={() => setShowDiag(true)}
+            aria-label="Diagnostics"
+            className="text-white/70 border border-white/15 rounded px-2 py-1"
+          >
+            <Radio size={14} />
           </button>
           <button
             onClick={leaveRoom}
@@ -1212,6 +1243,7 @@ export default function App() {
         </div>
       )}
       {showHelp && <HowToOverlay onClose={() => setShowHelp(false)} />}
+      {showDiag && <DiagnosticsOverlay onClose={() => setShowDiag(false)} />}
     </div>
   );
 }

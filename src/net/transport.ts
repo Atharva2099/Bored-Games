@@ -1,5 +1,5 @@
 import { joinRoom, selfId } from '@trystero-p2p/nostr';
-import type { Room, TurnServerConfig } from '@trystero-p2p/core';
+import type { Room } from '@trystero-p2p/core';
 import type { Role } from '../game/werewolf/logic';
 import type { Player } from './presence';
 
@@ -8,32 +8,34 @@ export type { Player } from './presence';
 export const APP_ID = 'bored-games-werewolf-v1';
 
 // Trystero picks its 5 relays by hashing appId, so every user of this app
-// would otherwise get the same 5 (mostly hobby) relays forever. Pin the
-// high-uptime public ones instead.
+// would otherwise get the same 5 (mostly hobby) relays forever.
+// Every relay below was verified to round-trip an EPHEMERAL event (kind
+// 20000-29999, which is what Trystero signals over) — a relay that stores
+// notes fine can still silently drop ephemerals, so "popular" is not enough.
+// nostr.wine was removed: it is a PAID relay and rejects every write with
+// "restricted: sign up at https://nostr.wine".
 export const RELAY_URLS = [
   'wss://relay.damus.io',
   'wss://nos.lol',
   'wss://relay.primal.net',
   'wss://relay.snort.social',
-  'wss://nostr.wine',
+  'wss://relay.mostr.pub',
+  'wss://nostr.data.haus',
 ];
 
-// Trystero's ICE defaults are STUN-only, which cannot connect two peers
-// that are both behind symmetric NAT (i.e. most phones on carrier data).
-// OpenRelay is free, needs no account, and publishes these credentials
-// deliberately. Port 443/TCP is the variant that survives restrictive wifi.
-const TURN_SERVERS: TurnServerConfig[] = [
-  {
-    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
-  },
-  {
-    urls: 'turn:openrelay.metered.ca:80',
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
-  },
-];
+// NO TURN SERVER IS CONFIGURED, and that is deliberate.
+// Trystero's ICE defaults are STUN-only, which cannot connect two peers that
+// are both behind symmetric NAT (typical of phones on carrier data). The fix
+// for that is a TURN relay — but as of 2026-09 every free ANONYMOUS TURN
+// service is dead. Measured directly from a browser:
+//   turn:openrelay.metered.ca:80    -> 400 TURN allocate error
+//   turn:openrelay.metered.ca:443   -> 701 Failed to establish connection
+//   turn:global.relay.metered.ca:80 -> 400 TURN allocate error
+//   turn:freeturn.tel / expressturn -> 701 host lookup failed
+// None produced a `relay` ICE candidate. Shipping dead TURN entries is worse
+// than none: ICE spends time on allocations that can never succeed.
+// To support carrier-NAT players a TURN server with an ACCOUNT is required
+// (Cloudflare's free tier is the best option). Add it here when available.
 
 export interface JoinMsg {
   name: string;
@@ -85,7 +87,11 @@ export interface RoomHandle {
   leave: () => void;
 }
 
-export function createRoom(roomId: string, _isHost: boolean): RoomHandle {
+export function createRoom(
+  roomId: string,
+  _isHost: boolean,
+  onJoinError?: (e: { error: string }) => void,
+): RoomHandle {
   // The room code IS the password: only devices holding the QR/link can
   // even complete a handshake. No server, no accounts, no keys to steal.
   // NOTE: do not set `passive: !isHost` here. It gives the star topology we
@@ -100,10 +106,10 @@ export function createRoom(roomId: string, _isHost: boolean): RoomHandle {
     {
       appId: APP_ID,
       password: `bg1:${roomId}`,
-      turnConfig: TURN_SERVERS,
       relayConfig: { urls: RELAY_URLS },
     },
     roomId,
+    onJoinError ? { onJoinError } : undefined,
   );
   return { room, selfId, leave: () => void room.leave() };
 }
