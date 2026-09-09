@@ -76,6 +76,7 @@ export default function App() {
   const [handle, setHandle] = useState<RoomHandle | null>(null);
 
   const [pub, setPub] = useState<PublicState | null>(null);
+  const [peerCount, setPeerCount] = useState(0);
   const [myRole, setMyRole] = useState<Role | null>(null);
   const [seerSeen, setSeerSeen] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
@@ -216,6 +217,12 @@ export default function App() {
     room.onPeerJoin = (peerId: string) => {
       // tell newcomer who we are; host will add us to roster
       sendersRef.current?.sendJoin({ name: myName }, peerId);
+      // host also pushes current state directly to the newcomer
+      if (isHostRef.current && pubRef.current)
+        sendersRef.current?.sendPub(
+          pubRef.current as unknown as Record<string, unknown>,
+          peerId,
+        );
     };
     room.onPeerLeave = (peerId: string) => {
       if (!isHostRef.current) return;
@@ -234,6 +241,36 @@ export default function App() {
       });
     };
 
+    // connection diagnostics: live peer count for the lobby signal readout
+    const peerTimer = setInterval(() => {
+      try {
+        setPeerCount(Object.keys(room.getPeers()).length);
+      } catch {
+        /* trackers unreachable */
+      }
+    }, 2000);
+
+    // guest retry: announces are fire-and-forget, so re-announce until the
+    // host's state arrives (covers slow tracker/WebRTC handshakes)
+    const retryTimer = setInterval(() => {
+      if (!pubRef.current)
+        sendersRef.current?.sendJoin({ name: myName });
+    }, 3000);
+
+    // host heartbeat: rebroadcast state so late joiners converge
+    const beatTimer = setInterval(() => {
+      if (isHostRef.current && pubRef.current)
+        sendersRef.current?.sendPub(
+          pubRef.current as unknown as Record<string, unknown>,
+        );
+    }, 5000);
+
+    const stopTimers = () => {
+      clearInterval(peerTimer);
+      clearInterval(retryTimer);
+      clearInterval(beatTimer);
+    };
+
     if (isHost) {
       const seed: PublicState = initialPublic([
         { peerId: selfId, name: myName },
@@ -246,6 +283,7 @@ export default function App() {
       );
       return () => {
         clearTimeout(t);
+        stopTimers();
         room.onPeerJoin = null;
         room.onPeerLeave = null;
       };
@@ -257,6 +295,7 @@ export default function App() {
     );
     return () => {
       clearTimeout(t);
+      stopTimers();
       room.onPeerJoin = null;
       room.onPeerLeave = null;
     };
@@ -548,6 +587,24 @@ export default function App() {
               <li key={p.peerId} className="py-1.5 text-sm flex items-center gap-2"><User size={14} /> {p.name}</li>
             ))}
           </ul>
+          <div className="text-xs text-white/50">
+            Signal: {peerCount} peer{peerCount === 1 ? '' : 's'} connected · {roomCode}
+          </div>
+          {!isHost && (pub?.players.length ?? 0) === 0 && (
+            <div className="text-sm text-amber-200/90 space-y-2">
+              <p>Looking for the host… if this sticks: check the code matches, both devices need internet, then retry.</p>
+              <button
+                onClick={() =>
+                  sendersRef.current?.sendJoin({
+                    name: localStorage.getItem('bg-name') ?? 'Player',
+                  })
+                }
+                className="rounded-lg border border-white/20 px-3 py-1.5 text-sm"
+              >
+                Retry join
+              </button>
+            </div>
+          )}
           {isHost ? (
             <button onClick={hostStart} className="btn-accent">
               Start game ({pub?.players.length ?? 0})
