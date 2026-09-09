@@ -486,6 +486,13 @@ export default function App() {
             <div className="text-sm text-white/75">
               <div className="font-semibold text-white">Scan to join</div>
               <div className="font-mono break-all">{joinUrl(roomCode)}</div>
+              {window.location.hostname === 'localhost' && (
+                <div className="mt-1 text-amber-200/90">
+                  Dev mode: this QR points at localhost, so phones can't use
+                  it — open this site via the laptop's network address and
+                  type the code {roomCode} manually.
+                </div>
+              )}
               <div className="mt-1">Need 5+ to start. 7+ adds Seer + Doctor, 11+ adds 3rd wolf.</div>
             </div>
           </div>
