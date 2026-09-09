@@ -1,4 +1,4 @@
-import { joinRoom, selfId } from '@trystero-p2p/torrent';
+import { joinRoom, selfId } from '@trystero-p2p/nostr';
 import type { Room } from '@trystero-p2p/core';
 import type { Role } from '../game/werewolf/logic';
 
