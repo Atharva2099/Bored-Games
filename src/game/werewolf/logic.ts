@@ -134,11 +134,11 @@ export function checkWinner(
   return null;
 }
 
-/** Room codes: readable, no 0/O/1/I. e.g. WOLF-4821 */
+/** Room codes: readable, no 0/O/1/I. e.g. WOLF-4821KQ (6 chars ≈ 1B combos) */
 export function makeRoomCode(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   let s = '';
-  for (let i = 0; i < 4; i++)
+  for (let i = 0; i < 6; i++)
     s += chars[Math.floor(Math.random() * chars.length)];
   return `WOLF-${s}`;
 }

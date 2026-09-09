@@ -51,6 +51,8 @@ export interface RoomHandle {
 }
 
 export function createRoom(roomId: string): RoomHandle {
-  const room = joinRoom({ appId: APP_ID }, roomId);
+  // The room code IS the password: only devices holding the QR/link can
+  // even complete a handshake. No server, no accounts, no keys to steal.
+  const room = joinRoom({ appId: APP_ID, password: `bg1:${roomId}` }, roomId);
   return { room, selfId, leave: () => void room.leave() };
 }
