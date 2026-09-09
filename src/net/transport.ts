@@ -6,6 +6,8 @@ export const APP_ID = 'bored-games-werewolf-v1';
 
 export interface JoinMsg {
   name: string;
+  /** stable per-browser id so refreshes rejoin as the same player */
+  client: string;
   [k: string]: unknown;
 }
 
@@ -36,6 +38,9 @@ export interface ActionMsg {
   nightKind?: 'wolf' | 'save' | 'see';
   targetId: string | null;
   fromName: string;
+  /** stable per-browser id; votes are tallied per client, not per peer.
+   * Optional at call sites — sendGuestAction fills it in. */
+  client?: string;
   [k: string]: unknown;
 }
 

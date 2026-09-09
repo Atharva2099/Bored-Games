@@ -10,6 +10,7 @@ import {
   User,
   Vote,
   Wheat,
+  X,
 } from 'lucide-react';
 import { RoomFinePrint, WerewolfFinePrint } from './ui/About';
 import { HomeLogo, Landing, SHTeaser, type GamePick } from './ui/Landing';
@@ -51,6 +52,32 @@ function joinUrl(roomCode: string) {
   return `${base}?room=${encodeURIComponent(roomCode)}`;
 }
 
+function getClientId(): string {
+  let c = localStorage.getItem('bg-client');
+  if (!c) {
+    c = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem('bg-client', c);
+  }
+  return c;
+}
+
+interface Session {
+  room: string;
+  name: string;
+  isHost: boolean;
+}
+
+function loadSession(): Session | null {
+  try {
+    const s = JSON.parse(localStorage.getItem('bg-session') ?? 'null');
+    if (s && typeof s.room === 'string' && typeof s.name === 'string')
+      return s as Session;
+  } catch {
+    /* no session */
+  }
+  return null;
+}
+
 interface Senders {
   sendJoin: (d: unknown, target?: string | string[]) => void;
   sendPub: (d: unknown, target?: string | string[]) => void;
@@ -77,9 +104,21 @@ export default function App() {
 
   const [pub, setPub] = useState<PublicState | null>(null);
   const [peerCount, setPeerCount] = useState(0);
-  const [myRole, setMyRole] = useState<Role | null>(null);
+  const [myRole, setMyRole] = useState<Role | null>(() => {
+    // instant restore after refresh; host re-sends the role to confirm
+    try {
+      const saved = JSON.parse(localStorage.getItem('bg-myrole') ?? 'null');
+      if (saved && saved.room === (params.get('room') ?? localStorage.getItem('bg-room')) && typeof saved.role === 'string')
+        return saved.role as Role;
+    } catch {
+      /* no saved role */
+    }
+    return null;
+  });
   const [seerSeen, setSeerSeen] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(() => loadSession());
+  const clientId = useMemo(() => getClientId(), []);
 
   const rolesRef = useRef<Record<string, Role>>({});
   const nightRef = useRef<{
@@ -92,6 +131,8 @@ export default function App() {
   const pubRef = useRef<PublicState | null>(null);
   const rosterRef = useRef<{ peerId: string; name: string }[]>([]);
   const sendersRef = useRef<Senders | null>(null);
+  const clientToPeer = useRef<Record<string, string>>({});
+  const peerToClient = useRef<Record<string, string>>({});
   const isHostRef = useRef(false);
 
   pubRef.current = pub;
@@ -109,6 +150,9 @@ export default function App() {
     const cleanCode = code.trim().toUpperCase() || makeRoomCode();
     localStorage.setItem('bg-name', cleanName);
     localStorage.setItem('bg-room', cleanCode);
+    const sess = { room: cleanCode, name: cleanName, isHost: host };
+    localStorage.setItem('bg-session', JSON.stringify(sess));
+    setSession(sess);
     const h = createRoom(cleanCode);
     setHandle(h);
     setRoomCode(cleanCode);
@@ -128,37 +172,90 @@ export default function App() {
       sendersRef.current?.sendPub(p as unknown as Record<string, unknown>);
     };
 
+    // Move every peer-keyed record from an old peerId to a new one when a
+    // known client reconnects after a refresh.
+    const rekeyPeer = (oldPeer: string, newPeer: string) => {
+      if (rolesRef.current[oldPeer] !== undefined) {
+        rolesRef.current[newPeer] = rolesRef.current[oldPeer];
+        delete rolesRef.current[oldPeer];
+      }
+      for (const [voter, target] of Object.entries(votesRef.current)) {
+        if (voter === oldPeer) {
+          votesRef.current[newPeer] = target;
+          delete votesRef.current[oldPeer];
+        }
+        if (target === oldPeer) votesRef.current[voter] = newPeer;
+      }
+      const n = nightRef.current;
+      if (n.wolfTarget === oldPeer) n.wolfTarget = newPeer;
+      if (n.doctorSave === oldPeer) n.doctorSave = newPeer;
+      if (n.seerCheck === oldPeer) n.seerCheck = newPeer;
+      if (n.seerBy === oldPeer) n.seerBy = newPeer;
+    };
+
+    const handleJoin = (peerId: string, data: unknown) => {
+      if (!isHostRef.current) return;
+      const msg = data as { name?: string; client?: string };
+      const msgName = (msg?.name as string) ?? 'Player';
+      const client = (msg?.client as string) ?? peerId;
+      peerToClient.current[peerId] = client;
+      const prevPeer = clientToPeer.current[client];
+      clientToPeer.current[client] = peerId;
+
+      const sendNow = sendersRef.current;
+      let base = pubRef.current;
+      if (!base) {
+        base = initialPublic([{ peerId: selfId, name: myName }]);
+        clientToPeer.current[clientId] = selfId;
+        peerToClient.current[selfId] = clientId;
+      }
+
+      // duplicate announce (retries) — just re-send state to converge
+      if (base.players.some((p) => p.peerId === peerId)) {
+        sendNow?.sendPub(base as unknown as Record<string, unknown>, peerId);
+        return;
+      }
+
+      let logLine: string;
+      let nextPlayers = base.players;
+      if (prevPeer && prevPeer !== peerId) {
+        // refresh rejoin: migrate records, keep the seat
+        rekeyPeer(prevPeer, peerId);
+        nextPlayers = base.players.map((p) =>
+          p.peerId === prevPeer ? { ...p, peerId } : p,
+        );
+        logLine = `${msgName} reconnected.`;
+        const role = rolesRef.current[peerId];
+        if (role && base.phase !== 'lobby')
+          sendNow?.sendRole({ role }, peerId);
+      } else if (!base.players.some((p) => p.peerId === peerId)) {
+        const spectate = base.phase !== 'lobby';
+        nextPlayers = [
+          ...base.players,
+          { peerId, name: msgName, alive: !spectate },
+        ];
+        logLine = spectate
+          ? `${msgName} joined as spectator.`
+          : `${msgName} joined.`;
+      } else {
+        return;
+      }
+
+      const nextPub: PublicState = {
+        ...base,
+        phase: base.phase === 'lobby' ? 'lobby' : base.phase,
+        players: nextPlayers,
+        log: [...base.log, logLine].slice(-50),
+      };
+      setPub(nextPub);
+      sendNow?.sendPub(nextPub as unknown as Record<string, unknown>);
+      sendNow?.sendPub(nextPub as unknown as Record<string, unknown>, peerId);
+    };
+
     const joinAct = room.makeAction('join', {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      onMessage: (data: any, ctx: { peerId: string }) => {
-        if (!isHostRef.current) return;
-        const peerId = ctx.peerId;
-        const msgName = (data?.name as string) ?? 'Player';
-        setPub((prev) => {
-          const base =
-            prev ??
-            initialPublic([
-              { peerId: selfId, name: myName },
-            ]);
-          if (base.players.some((p) => p.peerId === peerId)) return prev ?? base;
-          const nextPub: PublicState = {
-            ...base,
-            phase: 'lobby',
-            players: [
-              ...base.players,
-              { peerId, name: msgName, alive: true },
-            ],
-            log: [...base.log, `${msgName} joined.`].slice(-50),
-          };
-          // send to everyone + direct to newcomer
-          sendersRef.current?.sendPub(nextPub as unknown as Record<string, unknown>);
-          sendersRef.current?.sendPub(
-            nextPub as unknown as Record<string, unknown>,
-            peerId,
-          );
-          return nextPub;
-        });
-      },
+      onMessage: (data: any, ctx: { peerId: string }) =>
+        handleJoin(ctx.peerId, data),
     });
     const pubAct = room.makeAction('pub', {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -166,7 +263,15 @@ export default function App() {
     });
     const roleAct = room.makeAction('role', {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      onMessage: (data: any) => setMyRole((data?.role as Role) ?? null),
+      onMessage: (data: any) => {
+        const role = (data?.role as Role) ?? null;
+        setMyRole(role);
+        if (role)
+          localStorage.setItem(
+            'bg-myrole',
+            JSON.stringify({ room: roomCode, role }),
+          );
+      },
     });
     const seerAct = room.makeAction('seer', {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -178,6 +283,10 @@ export default function App() {
         if (!isHostRef.current) return;
         const m = data as unknown as ActionMsg;
         const peerId = ctx.peerId;
+        // votes tally per stable client so a refresh can't double-vote
+        const voter =
+          peerToClient.current[peerId] ??
+          (peerId === selfId ? clientId : peerId);
         if (m.kind === 'night') {
           const role = rolesRef.current[peerId];
           if (m.nightKind === 'wolf' && role === 'werewolf')
@@ -190,7 +299,7 @@ export default function App() {
           }
         }
         if (m.kind === 'vote' && m.targetId) {
-          votesRef.current[peerId] = m.targetId;
+          votesRef.current[voter] = m.targetId;
           const cur = pubRef.current;
           if (cur)
             broadcast({ ...cur, votes: { ...votesRef.current } });
@@ -216,7 +325,7 @@ export default function App() {
 
     room.onPeerJoin = (peerId: string) => {
       // tell newcomer who we are; host will add us to roster
-      sendersRef.current?.sendJoin({ name: myName }, peerId);
+      sendersRef.current?.sendJoin({ name: myName, client: clientId }, peerId);
       // host also pushes current state directly to the newcomer
       if (isHostRef.current && pubRef.current)
         sendersRef.current?.sendPub(
@@ -254,7 +363,7 @@ export default function App() {
     // host's state arrives (covers slow tracker/WebRTC handshakes)
     const retryTimer = setInterval(() => {
       if (!pubRef.current)
-        sendersRef.current?.sendJoin({ name: myName });
+        sendersRef.current?.sendJoin({ name: myName, client: clientId });
     }, 3000);
 
     // host heartbeat: rebroadcast state so late joiners converge
@@ -272,9 +381,48 @@ export default function App() {
     };
 
     if (isHost) {
-      const seed: PublicState = initialPublic([
-        { peerId: selfId, name: myName },
-      ]);
+      // refresh recovery: restore truth saved before the reload
+      let seed: PublicState;
+      try {
+        const saved = JSON.parse(
+          localStorage.getItem(`bg-host-${roomCode}`) ?? 'null',
+        );
+        if (saved && saved.pub && saved.roles && saved.hostPeer) {
+          const oldPeer = saved.hostPeer as string;
+          rolesRef.current = saved.roles as Record<string, Role>;
+          if (oldPeer !== selfId && rolesRef.current[oldPeer] !== undefined) {
+            rolesRef.current[selfId] = rolesRef.current[oldPeer];
+            delete rolesRef.current[oldPeer];
+          }
+          const players = (saved.pub.players as PublicState['players']).map(
+            (p) => (p.peerId === oldPeer ? { ...p, peerId: selfId } : p),
+          );
+          seed = {
+            ...(saved.pub as PublicState),
+            players,
+            log: [
+              ...(saved.pub.log as string[]),
+              'Host rebooted — night inputs reset.',
+            ].slice(-50),
+          };
+          const me = players.find((p) => p.peerId === selfId);
+          if (me && rolesRef.current[selfId]) {
+            setMyRole(rolesRef.current[selfId]);
+            localStorage.setItem(
+              'bg-myrole',
+              JSON.stringify({ room: roomCode, role: rolesRef.current[selfId] }),
+            );
+          }
+        } else {
+          throw new Error('no save');
+        }
+      } catch {
+        seed = initialPublic([{ peerId: selfId, name: myName }]);
+      }
+      clientToPeer.current[clientId] = selfId;
+      peerToClient.current[selfId] = clientId;
+      nightRef.current = { wolfTarget: null, doctorSave: null, seerCheck: null, seerBy: null };
+      votesRef.current = {};
       setPub(seed);
       const t = setTimeout(
         () =>
@@ -290,7 +438,8 @@ export default function App() {
     }
 
     const t = setTimeout(
-      () => sendersRef.current?.sendJoin({ name: myName }),
+      () =>
+        sendersRef.current?.sendJoin({ name: myName, client: clientId }),
       600,
     );
     return () => {
@@ -301,6 +450,26 @@ export default function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inRoom, handle]);
+
+  // host persistence: every state change is saved so a host refresh
+  // restores the table instead of killing the game
+  useEffect(() => {
+    if (inRoom && isHost && pub && handle) {
+      try {
+        localStorage.setItem(
+          `bg-host-${roomCode}`,
+          JSON.stringify({
+            pub,
+            roles: rolesRef.current,
+            hostPeer: handle.selfId,
+          }),
+        );
+      } catch {
+        /* storage full — game still works, just not refresh-proof */
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pub]);
 
   // ---------- host actions ----------
   const sendPubState = (p: PublicState) => {
@@ -448,27 +617,68 @@ export default function App() {
   // ---------- guest actions ----------
   const sendGuestAction = (msg: ActionMsg) => {
     if (!handle) return;
+    const full = { ...msg, client: clientId };
     if (isHost) {
-      if (msg.kind === 'night') {
-        if (msg.nightKind === 'wolf') nightRef.current.wolfTarget = msg.targetId;
-        if (msg.nightKind === 'save') nightRef.current.doctorSave = msg.targetId;
-        if (msg.nightKind === 'see') {
-          nightRef.current.seerCheck = msg.targetId;
+      if (full.kind === 'night') {
+        if (full.nightKind === 'wolf') nightRef.current.wolfTarget = full.targetId;
+        if (full.nightKind === 'save') nightRef.current.doctorSave = full.targetId;
+        if (full.nightKind === 'see') {
+          nightRef.current.seerCheck = full.targetId;
           nightRef.current.seerBy = handle.selfId;
         }
       }
-      if (msg.kind === 'vote' && msg.targetId) {
-        votesRef.current[handle.selfId] = msg.targetId;
+      if (full.kind === 'vote' && full.targetId) {
+        votesRef.current[clientId] = full.targetId;
         if (pub) sendPubState({ ...pub, votes: { ...votesRef.current } });
       }
       return;
     }
-    sendersRef.current?.sendAct(msg as unknown as Record<string, unknown>);
+    sendersRef.current?.sendAct(full as unknown as Record<string, unknown>);
+  };
+
+  const leaveRoom = () => {
+    handle?.leave();
+    localStorage.removeItem('bg-session');
+    setSession(null);
+    window.location.search = '';
+    window.location.reload();
   };
 
   // ================= render =================
   if (!inRoom && selected === null) {
-    return <Landing onPick={setSelected} />;
+    return (
+      <>
+        {session && (
+          <div className="fixed top-0 left-0 right-0 z-50 bg-[#92a9e1] text-black">
+            <div className="max-w-xl mx-auto px-4 py-2 flex items-center justify-between gap-2">
+              <span className="text-sm font-semibold truncate">
+                Rejoin {session.room} as {session.name}
+                {session.isHost ? ' (host)' : ''}?
+              </span>
+              <span className="flex gap-2 shrink-0">
+                <button
+                  onClick={() => join(session.isHost, session.room, session.name)}
+                  className="text-sm font-bold underline"
+                >
+                  Rejoin
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('bg-session');
+                    setSession(null);
+                  }}
+                  className="text-sm flex items-center"
+                  aria-label="Dismiss"
+                >
+                  <X size={16} />
+                </button>
+              </span>
+            </div>
+          </div>
+        )}
+        <Landing onPick={setSelected} />
+      </>
+    );
   }
 
   if (!inRoom && selected === 'sh') {
@@ -537,11 +747,7 @@ export default function App() {
           <HomeLogo
             size={26}
             onHome={() => {
-              if (window.confirm('Leave game and go home?')) {
-                handle?.leave();
-                window.location.search = '';
-                window.location.reload();
-              }
+              if (window.confirm('Leave game and go home?')) leaveRoom();
             }}
           />
           <div>
@@ -552,11 +758,7 @@ export default function App() {
           </div>
         </div>
         <button
-          onClick={() => {
-            handle?.leave();
-            window.location.search = '';
-            window.location.reload();
-          }}
+          onClick={leaveRoom}
           className="text-xs border border-white/15 rounded-lg px-2 py-1 text-white/70"
         >
           Leave
@@ -597,6 +799,7 @@ export default function App() {
                 onClick={() =>
                   sendersRef.current?.sendJoin({
                     name: localStorage.getItem('bg-name') ?? 'Player',
+                    client: clientId,
                   })
                 }
                 className="rounded-lg border border-white/20 px-3 py-1.5 text-sm"
