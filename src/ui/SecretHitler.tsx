@@ -993,7 +993,7 @@ export default function SecretHitler({
           {Array.from({ length: 5 }).map((_, i) => (
             <span
               key={i}
-              className="h-7 flex-1 rounded-sm border"
+              className="h-14 flex-1 rounded-sm border"
               style={i < sh.libTrack
                 ? { background: 'linear-gradient(180deg,#3d7bff,#1e40af)', borderColor: '#7aa5ff' }
                 : { background: 'rgba(122,165,255,0.08)', borderColor: 'rgba(122,165,255,0.35)' }}
@@ -1007,14 +1007,14 @@ export default function SecretHitler({
             return (
               <span
                 key={i}
-                className="h-11 flex-1 rounded-sm border flex flex-col items-center justify-center"
+                className="h-24 flex-1 rounded-sm border flex flex-col items-center justify-center gap-1"
                 style={filled
                   ? { background: 'linear-gradient(180deg,#f02a44,#a31226)', borderColor: '#ff6b7a' }
                   : { background: 'rgba(255,107,122,0.07)', borderColor: 'rgba(255,107,122,0.35)' }}
               >
                 <PowerGlyph power={power} />
                 {i === 4 && (
-                  <span className="sh-gold" style={{ fontSize: 8, fontWeight: 800 }}>VETO</span>
+                  <span className="sh-gold" style={{ fontSize: 11, fontWeight: 800 }}>VETO</span>
                 )}
               </span>
             );
@@ -1373,7 +1373,7 @@ function PolicyCard({ policy, dim }: { policy: Policy; dim?: boolean }) {
 function PowerGlyph({ power }: { power: Power | null }) {
   if (!power) return null;
   const Icon = power === 'investigate' ? Search : power === 'special' ? Repeat : power === 'peek' ? Eye : Skull;
-  return <Icon size={11} className="sh-gold" />;
+  return <Icon size={20} className="sh-gold" />;
 }
 
 function PowerPanel(props: {
