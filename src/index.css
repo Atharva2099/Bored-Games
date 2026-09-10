@@ -1,11 +1,12 @@
 @import "tailwindcss";
 
 /* Game palettes.
-   Werewolf = Lavender Haze #92A9E1 on AMOLED black (moonlit noir).
-   Secret Hitler = Burnt Peach #FE8254 on Deep Steel Blue #3F5A62.
-   Scope per game with data-game="werewolf" | "secret-hitler". */
+   One Night = Lavender Haze #92A9E1 on AMOLED black (moonlit noir).
+   Secret Hitler = liberal sapphire vs fascist crimson on dark ink,
+   gold chrome (art-deco official vibe).
+   Scope per game with data-game="one-night" | "secret-hitler". */
 :root,
-[data-game='werewolf'] {
+[data-game='one-night'] {
   --bg: #000;
   --panel: rgba(146, 169, 225, 0.08);
   --accent: #92a9e1;
@@ -14,9 +15,13 @@
 
 [data-game='secret-hitler'] {
   --bg: #3f5a62;
-  --panel: rgba(255, 255, 255, 0.07);
+  --panel: rgba(0, 0, 0, 0.28);
   --accent: #fe8254;
   --accent-ink: #3f5a62;
+  --lib: #2f6fed;
+  --lib-soft: #7aa5ff;
+  --fas: #d92038;
+  --fas-soft: #ff6b7a;
 }
 
 body {
@@ -32,9 +37,37 @@ body {
   font-family: 'Anton', Impact, 'Arial Narrow', sans-serif;
 }
 
-[data-game='werewolf'] .font-display {
+[data-game='one-night'] .font-display {
   font-family: 'Pirata One', 'Anton', Impact, serif;
   letter-spacing: 0.02em;
+}
+
+/* Secret Hitler policy cards — sapphire vs crimson, gold inner frame. */
+.sh-card {
+  border-radius: 6px;
+  padding: 1.75rem 0.5rem;
+  text-align: center;
+  border: 2px solid;
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.45), inset 0 0 0 4px rgba(201, 162, 39, 0.55);
+}
+.sh-card-lib {
+  background: linear-gradient(160deg, #3d7bff 0%, #1e40af 70%, #172c66 100%);
+  border-color: #7aa5ff;
+  color: #eef3ff;
+}
+.sh-card-fas {
+  background: linear-gradient(160deg, #f02a44 0%, #a31226 70%, #5e0a16 100%);
+  border-color: #ff6b7a;
+  color: #fff0f0;
+}
+.sh-card-label {
+  font-family: 'Anton', Impact, sans-serif;
+  letter-spacing: 0.12em;
+  margin-top: 0.4rem;
+  font-size: 1.05rem;
+}
+.sh-gold {
+  color: #fe8254;
 }
 /* Sharp vanta panels for in-room game screens. */
 .panel {
@@ -63,7 +96,7 @@ body {
 }
 
 [data-game='secret-hitler'] .btn-accent {
-  box-shadow: 0 0 24px rgba(254, 130, 84, 0.35);
+  box-shadow: 0 0 24px rgba(254, 130, 84, 0.45);
 }
 
 /* Phase change entrance. Re-mount with key={phase} to replay. */

@@ -1,7 +1,54 @@
 import { X } from 'lucide-react';
 
-/** Concise how-to-play overlay for One Night. Original wording. */
-export function HowToOverlay({ onClose }: { onClose: () => void }) {
+/** Concise how-to-play overlay. Original wording. */
+export function HowToOverlay({ onClose, game = 'onuw' }: { onClose: () => void; game?: 'onuw' | 'sh' }) {
+  if (game === 'sh') {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/80 flex items-start justify-center p-4 overflow-auto">
+        <div className="panel cut max-w-md w-full my-8 space-y-4" data-game="secret-hitler">
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-3xl">How to play</h2>
+            <button onClick={onClose} aria-label="Close" className="text-white/60">
+              <X size={20} />
+            </button>
+          </div>
+
+          <section className="space-y-1 text-sm text-white/75">
+            <h3 className="font-bold" style={{ color: '#7aa5ff' }}>Liberals vs Fascists</h3>
+            <p>
+              Liberals (majority, secret) pass 5 blue policies or kill Hitler.
+              Fascists (hidden minority) pass 6 red policies — or elect Hitler
+              Chancellor after 3 red policies. Hitler doesn&apos;t know the
+              fascists in 7–10 player games.
+            </p>
+          </section>
+
+          <section className="space-y-1 text-sm text-white/75">
+            <h3 className="font-bold" style={{ color: '#7aa5ff' }}>Each round</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>President nominates a Chancellor (not self, not the last elected pair).</li>
+              <li>Everyone votes JA! or NEIN! — strict majority passes.</li>
+              <li>President draws 3 policies, discards 1; Chancellor enacts 1 of 2.</li>
+              <li>3 failed elections in a row → top policy auto-enacts, tracker resets.</li>
+            </ul>
+          </section>
+
+          <section className="space-y-1 text-sm text-white/75">
+            <h3 className="font-bold" style={{ color: '#ff6b7a' }}>Fascist powers & veto</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Red policies unlock presidential powers (shown on each track slot): investigate loyalty, call a special election, peek at policies, execute a player.</li>
+              <li>Executing Hitler wins it for the liberals on the spot.</li>
+              <li>After 5 red policies, President + Chancellor may jointly veto a hand (counts as a failed election).</li>
+            </ul>
+          </section>
+
+          <button onClick={onClose} className="btn-accent">
+            Got it
+          </button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-start justify-center p-4 overflow-auto">
       <div className="panel cut max-w-md w-full my-8 space-y-4">

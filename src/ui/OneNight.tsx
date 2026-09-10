@@ -22,6 +22,7 @@ import {
   type RoomHandle,
 } from '../net/transport';
 import { narrateONUNight, speakCue } from './narrate';
+import { InvitePanel } from './Invite';
 
 const BLURB: Record<ONURole, string> = {
   werewolf: 'Wake with the pack. Lone wolf? Peek at a center card. Survive the vote.',
@@ -596,6 +597,7 @@ export default function OneNight({
 
   return (
     <div data-game="one-night" className="space-y-3 lg:space-y-4">
+      <InvitePanel roomCode={roomCode} />
       {/* role card */}
       <div className="panel cut">
         <div className="text-xs uppercase text-white/50">Your card</div>

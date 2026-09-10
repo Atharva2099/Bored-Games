@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Eye, Gavel, ScrollText, Users, Vote } from 'lucide-react';
+import { Crown, Eye, Flame, Gavel, Repeat, ScrollText, Search, Skull, Users, Vote } from 'lucide-react';
 import {
   assignSHRoles,
   buildPolicyDeck,
@@ -22,6 +22,7 @@ import {
   type SHPublic,
 } from '../net/transport';
 import { speakCue } from './narrate';
+import { InvitePanel } from './Invite';
 
 const ROLE_BLURB: Record<SHRole, string> = {
   liberal: 'Pass liberal policies. Find your allies — talk is your weapon.',
@@ -805,46 +806,88 @@ export default function SecretHitler({
 
   return (
     <div data-game="secret-hitler" className="space-y-3 lg:space-y-4">
+      <InvitePanel roomCode={roomCode} />
       {/* tracks */}
-      <div className="panel cut">
-        <div className="flex items-center justify-between text-xs uppercase text-white/50">
-          <span>Liberal {sh.libTrack}/5</span>
-          <span>Tracker {sh.tracker}/3</span>
-          <span>Fascist {sh.fasTrack}/6</span>
+      <div className="panel cut space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="font-display text-lg tracking-widest" style={{ color: '#7aa5ff' }}>LIBERAL {sh.libTrack}/5</span>
+          <span className="font-display text-lg tracking-widest" style={{ color: '#ff6b7a' }}>{sh.fasTrack}/6 FASCIST</span>
         </div>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <div className="flex gap-1">
-            {Array.from({ length: 5 }).map((_, i) => (
+        <div className="flex gap-1">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <span
+              key={i}
+              className="h-5 flex-1 rounded-sm border"
+              style={i < sh.libTrack
+                ? { background: 'linear-gradient(180deg,#3d7bff,#1e40af)', borderColor: '#7aa5ff' }
+                : { background: 'rgba(122,165,255,0.08)', borderColor: 'rgba(122,165,255,0.35)' }}
+            />
+          ))}
+        </div>
+        <div className="flex gap-1">
+          {Array.from({ length: 6 }).map((_, i) => {
+            const filled = i < sh.fasTrack;
+            const power = powerForSlot(sh.players.length, i + 1);
+            return (
               <span
                 key={i}
-                className={`h-4 flex-1 ${i < sh.libTrack ? 'bg-blue-500' : 'bg-white/10'}`}
+                className="h-8 flex-1 rounded-sm border flex flex-col items-center justify-center"
+                style={filled
+                  ? { background: 'linear-gradient(180deg,#f02a44,#a31226)', borderColor: '#ff6b7a' }
+                  : { background: 'rgba(255,107,122,0.07)', borderColor: 'rgba(255,107,122,0.35)' }}
+              >
+                <PowerGlyph power={power} />
+                {i === 4 && (
+                  <span className="sh-gold" style={{ fontSize: 8, fontWeight: 800 }}>VETO</span>
+                )}
+              </span>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs uppercase text-white/50">Election tracker</span>
+          <div className="flex gap-1">
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className="h-3 w-3 rounded-full border"
+                style={i < sh.tracker
+                  ? { background: '#fe8254', borderColor: '#fe8254' }
+                  : { borderColor: 'rgba(201,162,39,0.4)' }}
               />
             ))}
           </div>
-          <div className="flex gap-1">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <span
-                key={i}
-                className={`h-4 flex-1 ${i < sh.fasTrack ? 'bg-red-600' : 'bg-white/10'}`}
-              />
-            ))}
-          </div>
+          <span className="text-xs text-white/50 ml-auto">
+            Deck {sh.drawCount} · Discard {sh.discCount}
+            {vetoUnlocked(sh.fasTrack) ? ' · VETO LIVE' : ''}
+          </span>
         </div>
-        <div className="mt-2 text-xs text-white/50">
-          Deck {sh.drawCount} · Discard {sh.discCount}
-          {vetoUnlocked(sh.fasTrack) ? ' · VETO LIVE' : ''}
-          {sh.pendingPower ? ` · Power: ${sh.pendingPower}` : ''}
-        </div>
+        {sh.pendingPower && (
+          <div className="text-xs sh-gold font-bold uppercase">Power: {sh.pendingPower}</div>
+        )}
       </div>
 
       {/* role card */}
-      <div className="panel cut">
+      <div
+        className="panel cut"
+        style={myRole ? {
+          borderLeft: `4px solid ${myRole === 'liberal' ? '#2f6fed' : '#d92038'}`,
+          background: myRole === 'liberal'
+            ? 'linear-gradient(150deg, rgba(47,111,237,0.22), rgba(11,14,26,0.6))'
+            : myRole === 'hitler'
+              ? 'linear-gradient(150deg, rgba(217,32,56,0.28), rgba(20,4,8,0.7))'
+              : 'linear-gradient(150deg, rgba(217,32,56,0.20), rgba(11,14,26,0.6))',
+        } : undefined}
+      >
         <div className="text-xs uppercase text-white/50">Your secret role</div>
-        <div className="font-display text-3xl">
+        <div className="font-display text-3xl flex items-center gap-2">
           {myRole ? (
-            <span className={myRole === 'liberal' ? 'text-blue-400' : 'text-red-400'}>
-              {ROLE_LABEL[myRole]}
-            </span>
+            <>
+              {myRole === 'hitler' && <Crown size={26} className="sh-gold" />}
+              <span style={{ color: myRole === 'liberal' ? '#7aa5ff' : '#ff6b7a' }}>
+                {ROLE_LABEL[myRole]}
+              </span>
+            </>
           ) : (
             '…waiting…'
           )}
@@ -907,15 +950,21 @@ export default function SecretHitler({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => act({ kind: 'vote', ja: true })}
-                  className={`rounded px-2 py-2 font-bold ${myVote === true ? 'bg-blue-500 text-white' : 'bg-black/30 border border-white/10'}`}
+                  className="rounded py-4 font-display text-2xl tracking-widest border-2"
+                  style={myVote === true
+                    ? { background: 'linear-gradient(180deg,#3d7bff,#1e40af)', borderColor: '#7aa5ff', color: '#fff' }
+                    : { background: 'rgba(47,111,237,0.10)', borderColor: 'rgba(122,165,255,0.5)', color: '#7aa5ff' }}
                 >
-                  JA
+                  JA!
                 </button>
                 <button
                   onClick={() => act({ kind: 'vote', ja: false })}
-                  className={`rounded px-2 py-2 font-bold ${myVote === false ? 'bg-red-600 text-white' : 'bg-black/30 border border-white/10'}`}
+                  className="rounded py-4 font-display text-2xl tracking-widest border-2"
+                  style={myVote === false
+                    ? { background: 'linear-gradient(180deg,#f02a44,#a31226)', borderColor: '#ff6b7a', color: '#fff' }
+                    : { background: 'rgba(217,32,56,0.10)', borderColor: 'rgba(255,107,122,0.5)', color: '#ff6b7a' }}
                 >
-                  NEIN
+                  NEIN!
                 </button>
               </div>
             ) : (
@@ -940,7 +989,7 @@ export default function SecretHitler({
                 <div className="grid grid-cols-3 gap-2">
                   {myCards.cards.map((c, i) => (
                     <button key={i} onClick={() => { act({ kind: 'pres-discard', index: i }); setMyCards(null); }} className="rounded">
-                      <Tile policy={c} />
+                      <PolicyCard policy={c} />
                     </button>
                   ))}
                 </div>
@@ -962,7 +1011,7 @@ export default function SecretHitler({
                 <div className="grid grid-cols-2 gap-2">
                   {myCards.cards.map((c, i) => (
                     <button key={i} onClick={() => { act({ kind: 'chanc-enact', index: i }); setMyCards(null); }} className="rounded">
-                      <Tile policy={c} />
+                      <PolicyCard policy={c} />
                     </button>
                   ))}
                 </div>
@@ -1010,8 +1059,16 @@ export default function SecretHitler({
         )}
 
         {sh.phase === 'ended' && (
-          <div className="panel cut text-center space-y-2">
-            <div className="font-display text-4xl uppercase">
+          <div
+            className="panel cut text-center space-y-2"
+            style={sh.winner === 'liberals'
+              ? { borderTop: '4px solid #2f6fed', background: 'linear-gradient(180deg, rgba(47,111,237,0.20), transparent)' }
+              : { borderTop: '4px solid #d92038', background: 'linear-gradient(180deg, rgba(217,32,56,0.22), transparent)' }}
+          >
+            <div
+              className="font-display text-4xl uppercase"
+              style={{ color: sh.winner === 'liberals' ? '#7aa5ff' : '#ff6b7a' }}
+            >
               {sh.winner} win!
             </div>
             {isHost && (
@@ -1055,18 +1112,21 @@ export default function SecretHitler({
   );
 }
 
-function Tile({ policy }: { policy: Policy }) {
+function PolicyCard({ policy, dim }: { policy: Policy; dim?: boolean }) {
+  const lib = policy === 'liberal';
+  const Icon = lib ? Vote : Flame;
   return (
-    <div
-      className={`rounded-sm border-2 py-6 text-center font-display text-xl uppercase ${
-        policy === 'liberal'
-          ? 'bg-blue-600 border-blue-300 text-white'
-          : 'bg-red-700 border-red-400 text-white'
-      }`}
-    >
-      {policy}
+    <div className={`sh-card ${lib ? 'sh-card-lib' : 'sh-card-fas'}${dim ? ' opacity-60' : ''}`}>
+      <Icon size={30} className="mx-auto" strokeWidth={2.2} />
+      <div className="sh-card-label">{lib ? 'Liberal' : 'Fascist'}</div>
     </div>
   );
+}
+
+function PowerGlyph({ power }: { power: Power | null }) {
+  if (!power) return null;
+  const Icon = power === 'investigate' ? Search : power === 'special' ? Repeat : power === 'peek' ? Eye : Skull;
+  return <Icon size={11} className="sh-gold" />;
 }
 
 function PowerPanel(props: {
@@ -1090,7 +1150,7 @@ function PowerPanel(props: {
           <>
             <div className="grid grid-cols-3 gap-2">
               {props.peekCards.map((c, i) => (
-                <Tile key={i} policy={c} />
+                <PolicyCard key={i} policy={c} />
               ))}
             </div>
             <button onClick={props.onDone} className="btn-accent">

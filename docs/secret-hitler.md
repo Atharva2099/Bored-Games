@@ -1,18 +1,21 @@
-# Secret Hitler — build instructions (do this when we make it)
+# Secret Hitler — shipped
 
-Status: rules engine DONE (`src/game/secret-hitler/logic.ts`, 14/14 tests
-passing). UI + P2P wiring NOT done. The Werewolf room/QR/transport system
-is the template to reuse.
+Status: DONE — engine (`src/game/secret-hitler/logic.ts`), table UI
+(`src/ui/SecretHitler.tsx`), transport namespaces (`sh*`), themed,
+tested. Plays over the same WS-relay connection as One Night.
 
-## Palette (Burnt Peach + Deep Steel Blue)
+## Palette (liberal sapphire vs fascist crimson, gold chrome)
 
-- Accent: Burnt Peach `#FE8254`
-- Background: Deep Steel Blue `#3F5A62`
-- Hooks already exist in `src/index.css`: wrap SH screens in
-  `data-game="secret-hitler"` and use `className="btn-accent"` for primary
-  buttons. Display type is Anton (propaganda-poster condensed) via
-  `className="font-display"`. No new theme code needed — just use the
-  attributes.
+- Background: dark ink `#0b0e1a`
+- Liberal: sapphire `#2f6fed` / soft `#7aa5ff`
+- Fascist: crimson `#d92038` / soft `#ff6b7a`
+- Chrome: burnt peach `#FE8254` (buttons, tracker, power glyphs) on deep
+  steel blue `#3F5A62` surfaces — the original palette. Liberal sapphire
+  and fascist crimson are reserved for game pieces only (policy cards,
+  tracks, roles, ballots).
+- Hooks in `src/index.css` under `data-game="secret-hitler"`: `.sh-card`,
+  `.sh-card-lib`, `.sh-card-fas`, `.sh-gold`. Display type Anton via
+  `.font-display`.
 
 ## License rules (must follow — verified against secrethitler.com)
 

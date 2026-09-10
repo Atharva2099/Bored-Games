@@ -831,7 +831,7 @@ export default function App() {
     const isSH = selected === 'sh';
     return (
       <>
-        <div data-game={isSH ? 'secret-hitler' : 'werewolf'} className="min-h-screen flex items-center justify-center p-4">
+        <div data-game={isSH ? 'secret-hitler' : 'one-night'} className="min-h-screen flex items-center justify-center p-4">
         <div className="w-full max-w-sm bg-white/5 cut p-6 space-y-4 border border-white/10">
           <div className="flex items-center justify-between">
             <HomeLogo onHome={() => setSelected(null)} />
@@ -863,7 +863,7 @@ export default function App() {
             className="w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2 outline-none"
           />
           <button
-            onClick={() => void join(true, makeRoomCode(), name)}
+            onClick={() => void join(true, makeRoomCode(isSH ? 'SH' : 'NIGHT'), name)}
             className="btn-accent w-full"
           >
             Create a room
@@ -902,7 +902,7 @@ export default function App() {
           {isSH ? <SHFinePrint /> : <OneNightFinePrint />}
         </div>
       </div>
-      {showHelp && <HowToOverlay onClose={() => setShowHelp(false)} />}
+      {showHelp && <HowToOverlay game={isSH ? 'sh' : 'onuw'} onClose={() => setShowHelp(false)} />}
       {showDiag && <DiagnosticsOverlay onClose={() => setShowDiag(false)} />}
       </>
     );
@@ -1150,7 +1150,7 @@ export default function App() {
       )}
         </>
       )}
-      {showHelp && <HowToOverlay onClose={() => setShowHelp(false)} />}
+      {showHelp && <HowToOverlay game={pub?.game === 'secret-hitler' ? 'sh' : 'onuw'} onClose={() => setShowHelp(false)} />}
       {showDiag && <DiagnosticsOverlay onClose={() => setShowDiag(false)} />}
     </div>
   );

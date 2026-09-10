@@ -1,5 +1,3 @@
-import { SHFinePrint } from './About';
-
 export type GamePick = 'werewolf' | 'sh';
 
 /** Brand mark that always leads home. */
@@ -72,7 +70,7 @@ export function Landing({ onPick }: { onPick: (g: GamePick) => void }) {
       />
 
       <main className="px-5 py-6 space-y-4 max-w-xl mx-auto">
-        {/* WEREWOLF card */}
+        {/* ONE NIGHT card */}
         <button
           onClick={() => onPick('werewolf')}
           className="w-full text-left border-2 border-white bg-[#0a0a0a] p-5 hover:bg-[#141414] active:scale-[0.99]"
@@ -83,28 +81,28 @@ export function Landing({ onPick }: { onPick: (g: GamePick) => void }) {
               style={display}
               className="text-4xl uppercase leading-none"
             >
-              Were<span className="text-[#92a9e1]">wolf</span>
+              One <span className="text-[#92a9e1]">Night</span>
             </div>
             <span className="text-xs font-bold bg-[#92a9e1] text-black px-2 py-1 uppercase">
               Live
             </span>
           </div>
           <p className="mt-2 text-sm text-white/65">
-            Night kills, seer checks, day trials. 5+ for a full hunt — fewer
-            starts a demo.
+            One night, one vote. Robbers steal, troublemakers swap, tanners
+            want to die. 3–10 players, 10 minutes of lies.
           </p>
           <div
             style={display}
             className="mt-3 text-lg uppercase text-[#e10600]"
           >
-            Enter the den →
+            Enter the village →
           </div>
         </button>
 
         {/* SECRET HITLER card */}
         <button
           onClick={() => onPick('sh')}
-          className="w-full text-left border-2 border-white/40 bg-[#0a0a0a] p-5 hover:bg-[#141414] active:scale-[0.99]"
+          className="w-full text-left border-2 border-white bg-[#0a0a0a] p-5 hover:bg-[#141414] active:scale-[0.99]"
           style={{ clipPath: 'polygon(18px 0, 100% 0, 100% 100%, 0 100%, 0 18px)' }}
         >
           <div className="flex items-start justify-between">
@@ -114,19 +112,19 @@ export function Landing({ onPick }: { onPick: (g: GamePick) => void }) {
             >
               Secret <span className="text-[#fe8254]">Hitler</span>
             </div>
-            <span className="text-xs font-bold border border-[#fe8254] text-[#fe8254] px-2 py-1 uppercase">
-              Soon
+            <span className="text-xs font-bold bg-[#fe8254] text-black px-2 py-1 uppercase">
+              Live
             </span>
           </div>
           <p className="mt-2 text-sm text-white/65">
-            Elections, policies, executions. Rules engine done — the table
-            is being built.
+            Elections, secret policies, executions. Liberals vs fascists,
+            5–10 players.
           </p>
           <div
             style={display}
-            className="mt-3 text-lg uppercase text-white/50"
+            className="mt-3 text-lg uppercase text-[#e10600]"
           >
-            View intel →
+            Take power →
           </div>
         </button>
 
@@ -150,46 +148,6 @@ export function Landing({ onPick }: { onPick: (g: GamePick) => void }) {
       <footer className="px-5 pb-8 text-center text-[11px] text-white/35">
         Fan project · non-commercial · SH adaptation CC BY–NC–SA 4.0 · build {__BUILD_ID__}
       </footer>
-    </div>
-  );
-}
-
-/** Placeholder panel for Secret Hitler until the table UI ships. */
-export function SHTeaser({ onBack }: { onBack: () => void }) {
-  return (
-    <div
-      data-game="secret-hitler"
-      className="min-h-screen flex items-center justify-center p-4"
-      style={{ background: '#3f5a62' }}
-    >
-      <div className="w-full max-w-sm rounded-2xl p-6 space-y-4 border border-white/15 bg-black/30">
-        <div className="flex items-center justify-between">
-          <HomeLogo onHome={onBack} size={26} />
-          <button onClick={onBack} className="text-xs text-white/60 underline">
-            All games
-          </button>
-        </div>
-        <h1
-          className="text-3xl uppercase"
-          style={{ fontFamily: "'Anton', Impact, sans-serif" }}
-        >
-          Secret <span style={{ color: '#fe8254' }}>Hitler</span>
-        </h1>
-        <div className="text-sm text-white/75 space-y-2">
-          <p>
-            5–10 players: Liberals vs Fascists + Hitler. Elections, policy
-            decks, presidential powers, executions.
-          </p>
-          <p className="font-mono text-xs">
-            5p 3L+2F · 6p 4L+2F · 7p 4L+3F · 8p 5L+3F · 9p 5L+4F · 10p 6L+4F
-          </p>
-          <p className="text-white/60">
-            Status: rules engine tested and merged. Multiplayer table next —
-            see <code>docs/secret-hitler.md</code>.
-          </p>
-        </div>
-        <SHFinePrint />
-      </div>
     </div>
   );
 }
