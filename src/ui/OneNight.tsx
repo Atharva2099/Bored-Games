@@ -658,6 +658,89 @@ export default function OneNight({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handle]);
 
+  const rnd = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
+  /**
+   * Host-simulated dummies for testing. Same contract as SecretHitler:
+   * roster entries with no socket, auto-played through the validated doAct
+   * path with random VALID options only. One action per tick.
+   */
+  useEffect(() => {
+    if (!isHost || !onu || onu.phase === 'ended') return;
+    const t = setTimeout(() => {
+      const cur = onuRef.current;
+      if (!cur || !isHostRef.current) return;
+      const bots = cur.players.filter((p) => p.bot && p.alive);
+      if (bots.length === 0) return;
+      const aliveIds = cur.players.filter((p) => p.alive).map((p) => p.peerId);
+      const say = (fromPeer: string, msg: Omit<ONUActMsg, 'client'>) =>
+        doAct({ ...msg, client: fromPeer } as ONUActMsg, fromPeer);
+      const othersOf = (id: string) => aliveIds.filter((x) => x !== id);
+
+      if (cur.phase === 'role') {
+        const missing = bots.filter((b) => !(cur.ready ?? []).includes(b.peerId));
+        if (missing.length > 0) {
+          say(missing[0].peerId, { kind: 'ready' });
+          return;
+        }
+      }
+      if (cur.phase === 'night') {
+        const inp = inputsRef.current;
+        const ids = aliveIds;
+        for (const b of bots) {
+          const role = cardsRef.current[b.peerId];
+          const others = othersOf(b.peerId);
+          if (role === 'werewolf' && wolfPack(cardsRef.current, ids).length === 1 && inp.loneWolfCenter == null) {
+            say(b.peerId, { kind: 'lone', index: Math.floor(Math.random() * 3) });
+            return;
+          }
+          if (role === 'seer' && inp.seerPlayer == null && inp.seerCenter == null) {
+            if (others.length > 0 && Math.random() < 0.5) {
+              say(b.peerId, { kind: 'seer-player', targetId: rnd(others) });
+            } else {
+              const a = Math.floor(Math.random() * 3);
+              const c = (a + 1 + Math.floor(Math.random() * 2)) % 3;
+              say(b.peerId, { kind: 'seer-center', pair: [a, c] });
+            }
+            return;
+          }
+          if (role === 'robber' && inp.robberTarget == null && others.length > 0) {
+            say(b.peerId, { kind: 'robber', targetId: rnd(others) });
+            return;
+          }
+          if (role === 'troublemaker' && inp.troublePair == null && others.length >= 2) {
+            const a = rnd(others);
+            const rest = others.filter((x) => x !== a);
+            say(b.peerId, { kind: 'trouble', targetId: a, secondId: rnd(rest) });
+            return;
+          }
+          if (role === 'drunk' && inp.drunkCenter == null) {
+            say(b.peerId, { kind: 'drunk', index: Math.floor(Math.random() * 3) });
+            return;
+          }
+        }
+      }
+      if ((cur.phase === 'day' || cur.phase === 'vote') && hunterPointRef.current == null) {
+        const hunter = bots.find((b) => cardsRef.current[b.peerId] === 'hunter');
+        const others = hunter ? aliveIds.filter((x) => x !== hunter.peerId) : [];
+        if (hunter && others.length > 0) {
+          say(hunter.peerId, { kind: 'hunter-point', targetId: rnd(others) });
+          return;
+        }
+      }
+      if (cur.phase === 'vote') {
+        const missing = bots.filter((b) => !(b.peerId in votesRef.current));
+        if (missing.length > 0) {
+          const b = rnd(missing);
+          say(b.peerId, { kind: 'vote', targetId: rnd(aliveIds) });
+          return;
+        }
+      }
+    }, 1100);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onu]);
+
   // ---------- render ----------
   if (!onu) {
     return (

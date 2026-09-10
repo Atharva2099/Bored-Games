@@ -741,6 +741,49 @@ export default function App() {
     sendPubState({ ...pub, game });
   };
 
+  const BOT_NAMES = [
+    'Ada',
+    'Grace',
+    'Alan',
+    'Margaret',
+    'Katherine',
+    'Linus',
+    'Tim',
+    'Barbara',
+    'Edsger',
+    'Radia',
+  ];
+
+  /** Host-simulated dummies for testing. They live in the roster like any
+   * player (so counts/validation just work) but have no socket — the host
+   * auto-plays them inside each game. Lobby only; never mid-game. */
+  const addBot = () => {
+    if (!isHost || !pub || pub.phase !== 'lobby') return;
+    if (pub.players.length >= 10) return;
+    const used = new Set(pub.players.map((p) => p.name));
+    const name = BOT_NAMES.find((n) => !used.has(n)) ?? `Bot ${pub.players.length + 1}`;
+    const peerId = `bot-${Math.random().toString(36).slice(2, 8)}`;
+    sendPubState({
+      ...pub,
+      players: [
+        ...pub.players,
+        { peerId, name, alive: true, online: true, bot: true },
+      ],
+      log: [...pub.log, `${name} (bot) joined.`].slice(-50),
+    });
+  };
+
+  const removeBot = (peerId: string) => {
+    if (!isHost || !pub || pub.phase !== 'lobby') return;
+    const target = pub.players.find((p) => p.peerId === peerId);
+    if (!target?.bot) return;
+    sendPubState({
+      ...pub,
+      players: pub.players.filter((p) => p.peerId !== peerId),
+      log: [...pub.log, `${target.name} (bot) left.`].slice(-50),
+    });
+  };
+
   const startON = () => {
     if (!handle || !pub) return;
     const n = pub.players.length;
@@ -1083,7 +1126,17 @@ export default function App() {
           <AvatarGrid
             players={pub?.players ?? []}
             minNeeded={(pub?.game ?? 'one-night') === 'secret-hitler' ? 5 : 3}
+            onRemoveBot={isHost ? removeBot : undefined}
           />
+          {isHost && (pub?.phase ?? 'lobby') === 'lobby' && (
+            <button
+              onClick={addBot}
+              disabled={(pub?.players.length ?? 0) >= 10}
+              className="rounded border border-dashed border-purple-300/40 px-3 py-1.5 text-xs text-purple-200/90 disabled:opacity-40"
+            >
+              + Add bot (for testing)
+            </button>
+          )}
           <div className="text-xs text-white/50">
             Signal:{' '}
             {peerCount > 0

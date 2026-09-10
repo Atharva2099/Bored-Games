@@ -858,6 +858,91 @@ export default function SecretHitler({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handle]);
 
+  const rnd = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
+  /**
+   * Host-simulated dummies for testing. Bots are roster entries with no
+   * socket; the host fabricates their inputs through the same validated
+   * doAct path as real players (random among VALID options only — never
+   * informed by hidden host truth like roles or tiles). One action per
+   * tick; state changes re-trigger the effect for the next.
+   */
+  useEffect(() => {
+    if (!isHost || !sh || sh.phase === 'ended') return;
+    const t = setTimeout(() => {
+      const cur = shRef.current;
+      if (!cur || !isHostRef.current) return;
+      const bots = cur.players.filter((p) => p.bot && p.alive);
+      if (bots.length === 0) return;
+      const aliveIds = cur.players.filter((p) => p.alive).map((p) => p.peerId);
+      const say = (fromPeer: string, msg: Omit<SHActMsg, 'client'>) =>
+        doAct({ ...msg, client: fromPeer } as SHActMsg, fromPeer);
+
+      if (cur.phase === 'nominate' && cur.presidentId) {
+        const pres = cur.players.find((p) => p.peerId === cur.presidentId);
+        if (pres?.bot && !cur.chancellorId) {
+          const open = eligibleChancellors(aliveIds, cur.lastPresidentId, cur.lastChancellorId).filter(
+            (id) => id !== cur.presidentId,
+          );
+          if (open.length > 0) say(pres.peerId, { kind: 'nominate', targetId: rnd(open) });
+          return;
+        }
+      }
+      if (cur.phase === 'vote') {
+        const missing = bots.filter((b) => !(b.peerId in votesRef.current));
+        if (missing.length > 0) {
+          const b = rnd(missing);
+          say(b.peerId, { kind: 'vote', ja: Math.random() < 0.65 });
+          return;
+        }
+      }
+      if (cur.phase === 'legis-pres' && drawnRef.current.length === 3) {
+        const pres = cur.players.find((p) => p.peerId === cur.presidentId);
+        if (pres?.bot) {
+          say(pres.peerId, { kind: 'pres-discard', index: Math.floor(Math.random() * 3) });
+          return;
+        }
+      }
+      if (cur.phase === 'legis-chanc' && drawnRef.current.length === 2) {
+        // A proposed veto pauses everything until the president answers.
+        if (cur.vetoOffered && cur.presidentId) {
+          const pres = cur.players.find((p) => p.peerId === cur.presidentId);
+          if (pres?.bot) {
+            say(pres.peerId, { kind: 'veto-consent', agree: Math.random() < 0.5 });
+            return;
+          }
+          return; // waiting on the human president
+        }
+        const chanc = cur.players.find((p) => p.peerId === cur.chancellorId);
+        if (chanc?.bot) {
+          if (vetoUnlocked(cur.fasTrack) && Math.random() < 0.15) {
+            say(chanc.peerId, { kind: 'veto-propose' });
+          } else {
+            say(chanc.peerId, { kind: 'chanc-enact', index: Math.floor(Math.random() * 2) });
+          }
+          return;
+        }
+      }
+      if (cur.phase === 'power' && cur.pendingPower && cur.presidentId) {
+        const pres = cur.players.find((p) => p.peerId === cur.presidentId);
+        if (pres?.bot) {
+          if (cur.pendingPower === 'peek') {
+            say(pres.peerId, { kind: 'power-done' });
+          } else if (cur.pendingPower === 'investigate') {
+            const fresh = aliveIds.filter((id) => !investigatedRef.current.has(id));
+            if (fresh.length > 0) say(pres.peerId, { kind: 'power-target', targetId: rnd(fresh) });
+          } else {
+            const others = aliveIds.filter((id) => id !== pres.peerId);
+            if (others.length > 0) say(pres.peerId, { kind: 'power-target', targetId: rnd(others) });
+          }
+          return;
+        }
+      }
+    }, 1100);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sh]);
+
   // ---------- render ----------
   if (!sh) {
     return (

@@ -11,6 +11,8 @@ export interface Player {
   alive: boolean;
   /** NETWORK state: peer connection currently up. Never affects game rules. */
   online: boolean;
+  /** Host-simulated dummy for testing. Has no socket; the host auto-plays it. */
+  bot?: boolean;
 }
 
 /** Back-compat: state already in flight from an older client may be missing
