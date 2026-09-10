@@ -10,6 +10,7 @@ import {
   powerForSlot,
   resolveSHElection,
   shKnowledge,
+  shRoleCounts,
   vetoUnlocked,
   type Policy,
   type Power,
@@ -1038,6 +1039,24 @@ export default function SecretHitler({
             Deck {sh.drawCount} · Discard {sh.discCount}
             {vetoUnlocked(sh.fasTrack) ? ' · VETO LIVE' : ''}
           </span>
+        </div>
+        <div className="text-xs text-white/50">
+          {(() => {
+            try {
+              const c = shRoleCounts(sh.players.length);
+              return (
+                <>
+                  <span style={{ color: '#7aa5ff' }}>{c.liberals} Liberal</span>
+                  {' · '}
+                  <span style={{ color: '#ff6b7a' }}>{c.fascists - 1} Fascist · 1 Hitler</span>
+                  {' · '}
+                </>
+              );
+            } catch {
+              return null;
+            }
+          })()}
+          Deck holds 6 Liberal + 11 Fascist policies
         </div>
         {sh.pendingPower && (
           <div className="text-xs sh-gold font-bold uppercase">Power: {sh.pendingPower}</div>
