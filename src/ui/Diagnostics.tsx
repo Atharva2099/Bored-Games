@@ -5,7 +5,13 @@ import { RELAY_URLS } from '../net/transport';
 import { getCachedTurn } from '../net/turn';
 
 type RelayResult = { url: string; ok: boolean; ms: number; detail: string };
-type IceResult = { types: string[]; errors: string[]; ms: number };
+type IceResult = {
+  types: string[];
+  firstMs: Record<string, number>;
+  complete: boolean;
+  errors: string[];
+  ms: number;
+};
 
 /** Diagnostics overlay: reveals exactly where a P2P connection attempt
  * stalls (relay reachability, ICE candidate types, and a live event log)
@@ -15,6 +21,7 @@ export function DiagnosticsOverlay({ onClose }: { onClose: () => void }) {
   const [relayResults, setRelayResults] = useState<RelayResult[] | null>(null);
   const [iceResult, setIceResult] = useState<IceResult | null>(null);
   const [copyText, setCopyText] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const events = getDiag();
   const turnServers = getCachedTurn();
 
@@ -36,6 +43,8 @@ export function DiagnosticsOverlay({ onClose }: { onClose: () => void }) {
     try {
       await navigator.clipboard.writeText(text);
       setCopyText(null);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch {
       // iOS Safari (and others) can refuse clipboard writes outside a
       // direct user-gesture chain — fall back to a selectable textarea.
@@ -64,9 +73,12 @@ export function DiagnosticsOverlay({ onClose }: { onClose: () => void }) {
           </button>
           <button
             onClick={() => void copy()}
-            className="rounded border border-white/20 px-3 py-2 text-sm flex items-center gap-1"
+            className={`rounded border px-3 py-2 text-sm flex items-center gap-1 ${
+              copied ? 'border-emerald-400/60 text-emerald-300' : 'border-white/20'
+            }`}
           >
-            <Copy size={14} /> Copy
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+            {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
 
@@ -109,9 +121,22 @@ export function DiagnosticsOverlay({ onClose }: { onClose: () => void }) {
           <section className="space-y-1">
             <h3 className="text-xs uppercase text-white/50">ICE</h3>
             <p className="text-xs">
-              Types: {iceResult.types.length ? iceResult.types.join(', ') : 'none'} (
-              {iceResult.ms}ms)
+              {iceResult.types.length
+                ? iceResult.types
+                    .map((type) => `${type} @ ${iceResult.firstMs[type]}ms`)
+                    .join(' · ')
+                : 'none'}
             </p>
+            <p className="text-xs text-white/50">
+              gathering {iceResult.complete ? 'completed' : 'did NOT complete'} (
+              {iceResult.ms}ms) — trickle ICE does not wait for this
+            </p>
+            {!iceResult.types.includes('host') && (
+              <p className="text-xs text-amber-300/90">
+                no host candidates — two devices on the same wifi cannot
+                connect directly and must hairpin through the router
+              </p>
+            )}
             {turnServers.length > 0 ? (
               <p className="text-xs text-emerald-300/90">
                 TURN: {turnServers.length} server(s) configured

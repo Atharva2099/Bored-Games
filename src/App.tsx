@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Check,
+  Copy,
   Eye,
   Info,
   Moon,
@@ -87,6 +88,40 @@ function joinUrl(roomCode: string) {
   return `${base}?room=${encodeURIComponent(roomCode)}`;
 }
 
+// Robust clipboard copy: tries the async Clipboard API, falls back to a
+// hidden textarea + execCommand, and finally reveals the raw text so the
+// user can select-and-copy by hand (iOS Safari frequently rejects
+// programmatic clipboard writes outside a direct user gesture).
+async function copyToClipboard(
+  text: string,
+  onManual: (text: string) => void,
+): Promise<boolean> {
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+    throw new Error('no clipboard API');
+  } catch {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (ok) return true;
+      throw new Error('execCommand failed');
+    } catch {
+      onManual(text);
+      return false;
+    }
+  }
+}
+
 function getClientId(): string {
   let c = localStorage.getItem('bg-client');
   if (!c) {
@@ -163,7 +198,18 @@ export default function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showDiag, setShowDiag] = useState(false);
   const [hostLost, setHostLost] = useState(false);
+  const [copiedField, setCopiedField] = useState<'link' | 'code' | null>(null);
+  const [manualCopyText, setManualCopyText] = useState<string | null>(null);
   const clientId = useMemo(() => getClientId(), []);
+
+  const copyField = (field: 'link' | 'code', text: string) => {
+    void copyToClipboard(text, setManualCopyText).then((ok) => {
+      if (ok) {
+        setCopiedField(field);
+        setTimeout(() => setCopiedField(null), 2000);
+      }
+    });
+  };
 
   // Warm TURN credentials while the user is still typing their name, so
   // they're ready by the time Create/Join is tapped.
@@ -931,6 +977,18 @@ export default function App() {
             placeholder="e.g. Atharva"
             className="w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2 outline-none"
           />
+          <button
+            onClick={() => void join(true, makeRoomCode(), name)}
+            className="btn-accent w-full"
+          >
+            Create a room
+          </button>
+          <p className="text-xs text-white/50 text-center -mt-2">
+            A room code is generated for you.
+          </p>
+          <div className="border-t border-white/10 pt-2">
+            <p className="text-xs text-white/40 text-center">or</p>
+          </div>
           <label className="block text-xs uppercase text-white/60">Room code</label>
           <input
             value={roomCode}
@@ -938,20 +996,13 @@ export default function App() {
             placeholder="WOLF-XXXX"
             className="w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2 outline-none font-mono"
           />
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => void join(true, roomCode || makeRoomCode(), name)}
-              className="btn-accent"
-            >
-              Create
-            </button>
-            <button
-              onClick={() => roomCode.trim() && void join(false, roomCode, name)}
-              className="rounded bg-white text-black font-semibold py-2"
-            >
-              Join
-            </button>
-          </div>
+          <button
+            onClick={() => roomCode.trim() && void join(false, roomCode, name)}
+            disabled={!roomCode.trim()}
+            className="w-full rounded bg-white text-black font-semibold py-2 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Join
+          </button>
           <p className="text-xs text-white/50">
             Tip: Host taps Create, shares the QR/code. Works on Android + iOS
             browsers together.{' '}
@@ -1060,6 +1111,43 @@ export default function App() {
                   ? 'Secret Hitler needs 5-10 players.'
                   : '5+ for a full hunt · fewer starts a demo.'}
               </div>
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => copyField('link', joinUrl(roomCode))}
+                  className="rounded border border-white/20 px-2 py-1 text-xs flex items-center gap-1"
+                >
+                  {copiedField === 'link' ? (
+                    <Check size={12} className="text-emerald-300" />
+                  ) : (
+                    <Copy size={12} />
+                  )}
+                  {copiedField === 'link' ? 'Copied' : 'Copy link'}
+                </button>
+                <button
+                  onClick={() => copyField('code', roomCode)}
+                  className="rounded border border-white/20 px-2 py-1 text-xs flex items-center gap-1"
+                >
+                  {copiedField === 'code' ? (
+                    <Check size={12} className="text-emerald-300" />
+                  ) : (
+                    <Copy size={12} />
+                  )}
+                  {copiedField === 'code' ? 'Copied' : 'Copy code'}
+                </button>
+              </div>
+              {manualCopyText !== null && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs text-amber-200/90">
+                    Clipboard blocked — copy manually below.
+                  </p>
+                  <input
+                    readOnly
+                    value={manualCopyText}
+                    ref={(el) => el?.select()}
+                    className="w-full text-xs font-mono bg-black/40 border border-white/10 rounded p-1.5"
+                  />
+                </div>
+              )}
             </div>
           </div>
           <ul className="divide-y divide-white/10">
@@ -1071,7 +1159,11 @@ export default function App() {
             Signal:{' '}
             {peerCount > 0
               ? `${peerCount} peer${peerCount === 1 ? '' : 's'} connected`
-              : 'connecting…'}{' '}
+              : isHost
+                ? // peerCount only counts OTHER peers, so a host alone in a
+                  // fresh lobby is legitimately at 0 — that is not a hang.
+                  'ready — waiting for players to join'
+                : 'connecting to host…'}{' '}
             · {roomCode}
           </div>
           {!isHost && hostLost && (

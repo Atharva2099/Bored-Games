@@ -48,12 +48,20 @@ const STUN_URLS = [
   'stun:stun.cloudflare.com:3478',
 ];
 
-export function probeIce(): Promise<{ types: string[]; errors: string[]; ms: number }> {
+export function probeIce(): Promise<{
+  types: string[];
+  firstMs: Record<string, number>;
+  complete: boolean;
+  errors: string[];
+  ms: number;
+}> {
   const start = Date.now();
   return new Promise((resolve) => {
     const types = new Set<string>();
+    const firstMs: Record<string, number> = {};
     const errors: string[] = [];
     let done = false;
+    let complete = false;
     const pc = new RTCPeerConnection({ iceServers: [{ urls: STUN_URLS }] });
 
     const finish = () => {
@@ -65,19 +73,26 @@ export function probeIce(): Promise<{ types: string[]; errors: string[]; ms: num
       } catch {
         /* already closed */
       }
-      resolve({ types: [...types], errors, ms: Date.now() - start });
+      resolve({ types: [...types], firstMs, complete, errors, ms: Date.now() - start });
     };
 
     const timeout = setTimeout(finish, 10000);
 
     pc.onicecandidate = (e) => {
       if (!e.candidate) {
-        // null candidate signals gathering complete
+        // null candidate signals gathering complete (as opposed to hitting
+        // the 10s timeout below with trickle ICE still in flight)
+        complete = true;
         finish();
         return;
       }
       const match = /typ (\w+)/.exec(e.candidate.candidate);
-      if (match) types.add(match[1]);
+      if (match) {
+        const type = match[1];
+        types.add(type);
+        // record only the first sighting of each candidate type
+        if (!(type in firstMs)) firstMs[type] = Date.now() - start;
+      }
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
