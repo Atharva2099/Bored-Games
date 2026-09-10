@@ -23,6 +23,7 @@ import {
 } from '../net/transport';
 import { speakCue } from './narrate';
 import { InvitePanel } from './Invite';
+import { RosterList } from './Roster';
 
 const ROLE_BLURB: Record<SHRole, string> = {
   liberal: 'Pass liberal policies. Find your allies — talk is your weapon.',
@@ -849,7 +850,7 @@ export default function SecretHitler({
   if (!sh) {
     return (
       <div data-game="secret-hitler" className="space-y-3">
-        <InvitePanel roomCode={roomCode} />
+        <InvitePanel roomCode={roomCode} game="sh" />
         <div className="panel cut space-y-2">
           <div className="font-display text-3xl uppercase">Secret Hitler</div>
           {shError ? (
@@ -886,7 +887,7 @@ export default function SecretHitler({
 
   return (
     <div data-game="secret-hitler" className="space-y-3 lg:space-y-4">
-      <InvitePanel roomCode={roomCode} />
+      <InvitePanel roomCode={roomCode} game="sh" />
       {/* tracks */}
       <div className="panel cut space-y-2">
         <div className="flex items-center justify-between">
@@ -1163,21 +1164,20 @@ export default function SecretHitler({
       {/* table */}
       <div className="panel cut">
         <div className="text-xs uppercase text-white/50 mb-1 flex items-center gap-1">
-          <Users size={12} /> Table · {name}
+          <Users size={12} /> Table · {name} ({sh.players.length})
           {sh.presidentId && <span className="ml-2">P: {nameOf(sh.presidentId)}</span>}
         </div>
-        <ul className="text-sm space-y-1">
-          {sh.players.map((p) => (
-            <li
-              key={p.peerId}
-              className={!p.alive ? 'line-through text-white/40' : ''}
-            >
-              {p.name}
-              {p.peerId === sh.presidentId ? ' (P)' : ''}
-              {p.peerId === sh.chancellorId ? ' (C)' : ''}
-            </li>
-          ))}
-        </ul>
+        <RosterList
+          players={sh.players}
+          extra={(p) =>
+            [
+              p.peerId === sh.presidentId ? 'P' : '',
+              p.peerId === sh.chancellorId ? 'C' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')
+          }
+        />
       </div>
 
       <div className="panel cut">

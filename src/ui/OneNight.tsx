@@ -23,6 +23,7 @@ import {
 } from '../net/transport';
 import { narrateONUNight, speakCue } from './narrate';
 import { InvitePanel } from './Invite';
+import { RosterList } from './Roster';
 
 const BLURB: Record<ONURole, string> = {
   werewolf: 'Wake with the pack. Lone wolf? Peek at a center card. Survive the vote.',
@@ -648,7 +649,7 @@ export default function OneNight({
   if (!onu) {
     return (
       <div data-game="one-night" className="space-y-3">
-        <InvitePanel roomCode={roomCode} />
+        <InvitePanel roomCode={roomCode} game="one-night" />
         <div className="panel cut space-y-2">
           <div className="font-display text-3xl uppercase">One Night</div>
           {onuError ? (
@@ -680,7 +681,7 @@ export default function OneNight({
 
   return (
     <div data-game="one-night" className="space-y-3 lg:space-y-4">
-      <InvitePanel roomCode={roomCode} />
+      <InvitePanel roomCode={roomCode} game="one-night" />
       {/* role card */}
       <div className="panel cut">
         <div className="text-xs uppercase text-white/50">Your card</div>
@@ -858,14 +859,8 @@ export default function OneNight({
 
       {/* table */}
       <div className="panel cut">
-        <div className="text-xs uppercase text-white/50 mb-1">Table · {name}</div>
-        <ul className="text-sm space-y-1">
-          {onu.players.map((p) => (
-            <li key={p.peerId} className={!p.alive ? 'line-through text-white/40' : ''}>
-              {p.name}
-            </li>
-          ))}
-        </ul>
+        <div className="text-xs uppercase text-white/50 mb-1">Table · {name} ({onu.players.length})</div>
+        <RosterList players={onu.players} />
         <div className="mt-2 text-xs text-white/50">
           Pool: {onu.pool.map((r) => LABEL[r]).join(' · ')}
         </div>

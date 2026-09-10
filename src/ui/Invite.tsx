@@ -2,9 +2,19 @@ import { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Check, Copy, Share2 } from 'lucide-react';
 
-export function joinUrl(roomCode: string) {
+export type InviteGame = 'sh' | 'one-night';
+
+export function joinUrl(roomCode: string, game?: InviteGame) {
   const base = `${window.location.origin}${window.location.pathname}`;
-  return `${base}?room=${encodeURIComponent(roomCode)}`;
+  return `${base}?room=${encodeURIComponent(roomCode)}${game ? `&game=${game}` : ''}`;
+}
+
+/**
+ * Infer the game from a room code prefix (SH-/NIGHT-) when no explicit
+ * game param is present — e.g. hand-typed codes.
+ */
+export function gameFromCode(roomCode: string): InviteGame {
+  return roomCode.trim().toUpperCase().startsWith('SH-') ? 'sh' : 'one-night';
 }
 
 /**
@@ -12,10 +22,10 @@ export function joinUrl(roomCode: string) {
  * the game starts, so late joiners need a way in). Collapsed to one slim
  * row to save phone space; expands to QR + tappable code + copy button.
  */
-export function InvitePanel({ roomCode }: { roomCode: string }) {
+export function InvitePanel({ roomCode, game }: { roomCode: string; game: InviteGame }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const url = joinUrl(roomCode);
+  const url = joinUrl(roomCode, game);
 
   const copy = async () => {
     try {

@@ -7,7 +7,6 @@ import {
   Info,
   Moon,
   Radio,
-  User,
   Volume2,
   VolumeX,
   X,
@@ -19,6 +18,7 @@ import { fetchTurnServers, getCachedTurn, primeTurn } from './net/turn';
 import { cancelSpeech, speakCue } from './ui/narrate';
 import { OneNightFinePrint, RoomFinePrint, SHFinePrint } from './ui/About';
 import { HomeLogo, Landing, type GamePick } from './ui/Landing';
+import { RosterList } from './ui/Roster';
 import SecretHitler from './ui/SecretHitler';
 import OneNight from './ui/OneNight';
 import {
@@ -30,6 +30,8 @@ import {
 import type { Role } from './game/werewolf/logic';
 import {
   createRoom,
+  TRANSPORT,
+  WS_ENDPOINT,
   type ActionMsg,
   type PublicState,
   type RoomHandle,
@@ -55,9 +57,9 @@ const initialPublic = (
   game,
 });
 
-function joinUrl(roomCode: string) {
+function joinUrl(roomCode: string, game?: 'sh' | 'one-night') {
   const base = `${window.location.origin}${window.location.pathname}`;
-  return `${base}?room=${encodeURIComponent(roomCode)}`;
+  return `${base}?room=${encodeURIComponent(roomCode)}${game ? `&game=${game}` : ''}`;
 }
 
 // Robust clipboard copy: tries the async Clipboard API, falls back to a
@@ -141,10 +143,15 @@ export default function App() {
     () => params.get('room') ?? localStorage.getItem('bg-room') ?? '',
   );
   const [inRoom, setInRoom] = useState(false);
-  const [selected, setSelected] = useState<GamePick | null>(() =>
-    // QR arrivals skip the picker and land on the Werewolf join form
-    params.get('room') ? 'werewolf' : null,
-  );
+  const [selected, setSelected] = useState<GamePick | null>(() => {
+    // QR/link arrivals skip the picker and land on the right game's join
+    // form: explicit ?game= wins, otherwise infer from the code prefix.
+    const room = params.get('room');
+    if (!room) return null;
+    const g = params.get('game');
+    if (g === 'sh' || g === 'one-night') return g === 'sh' ? 'sh' : 'werewolf';
+    return room.trim().toUpperCase().startsWith('SH-') ? 'sh' : 'werewolf';
+  });
   const [isHost, setIsHost] = useState(false);
   const [handle, setHandle] = useState<RoomHandle | null>(null);
 
@@ -1017,11 +1024,11 @@ export default function App() {
         <div className="panel cut space-y-3 lg:grid lg:grid-cols-2 lg:gap-6 max-w-4xl">
           <div className="flex gap-3 items-center">
             <div className="bg-white p-2 rounded">
-              <QRCodeSVG value={joinUrl(roomCode)} size={110} />
+              <QRCodeSVG value={joinUrl(roomCode, (pub?.game ?? 'one-night') === 'secret-hitler' ? 'sh' : 'one-night')} size={110} />
             </div>
             <div className="text-sm text-white/75">
               <div className="font-semibold text-white">Scan to join</div>
-              <div className="font-mono break-all">{joinUrl(roomCode)}</div>
+              <div className="font-mono break-all">{joinUrl(roomCode, (pub?.game ?? 'one-night') === 'secret-hitler' ? 'sh' : 'one-night')}</div>
               {window.location.hostname === 'localhost' && (
                 <div className="mt-1 text-amber-200/90">
                   Dev mode: this QR points at localhost, so phones can't use
@@ -1036,7 +1043,7 @@ export default function App() {
               </div>
               <div className="mt-2 flex gap-2">
                 <button
-                  onClick={() => copyField('link', joinUrl(roomCode))}
+                  onClick={() => copyField('link', joinUrl(roomCode, (pub?.game ?? 'one-night') === 'secret-hitler' ? 'sh' : 'one-night'))}
                   className="rounded border border-white/20 px-2 py-1 text-xs flex items-center gap-1"
                 >
                   {copiedField === 'link' ? (
@@ -1073,11 +1080,8 @@ export default function App() {
               )}
             </div>
           </div>
-          <ul className="divide-y divide-white/10">
-            {(pub?.players ?? []).map((p) => (
-              <li key={p.peerId} className="py-1.5 text-sm flex items-center gap-2"><User size={14} /> {p.name}</li>
-            ))}
-          </ul>
+          <div className="text-xs uppercase text-white/50">Players ({(pub?.players ?? []).length})</div>
+          <RosterList players={pub?.players ?? []} />
           <div className="text-xs text-white/50">
             Signal:{' '}
             {peerCount > 0
@@ -1087,7 +1091,8 @@ export default function App() {
                   // fresh lobby is legitimately at 0 — that is not a hang.
                   'ready — waiting for players to join'
                 : 'connecting to host…'}{' '}
-            · {roomCode}
+            · {roomCode}{' '}
+            · {TRANSPORT === 'ws' && WS_ENDPOINT ? 'relay' : 'P2P fallback'}
           </div>
           {!isHost && hostLost && (
             <div className="text-sm text-amber-300/90 space-y-1">
