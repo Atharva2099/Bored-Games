@@ -226,6 +226,11 @@ export default function App() {
       (e) => logDiag('join-error', e.error),
       iceServers,
     );
+    // Every explicit join starts from a clean slate: a stale pub from a
+    // previous room would otherwise mount its game table instantly and
+    // skip the lobby/QR/start flow entirely.
+    setPub(null);
+    setPeerCount(0);
     setHandle(h);
     setRoomCode(cleanCode);
     setIsHost(host);
@@ -611,6 +616,29 @@ export default function App() {
                 : ['Host rebooted — night inputs reset.']),
             ].slice(-50),
           };
+          // If the save says a game table was open but that game's own
+          // save is gone, seating would strand players on a broken table.
+          // Fall back to a fresh lobby with the roster intact instead.
+          const gameSaveKey =
+            (saved.pub as PublicState).game === 'secret-hitler'
+              ? `bg-shhost-${roomCode}`
+              : (saved.pub as PublicState).game === 'one-night'
+                ? `bg-onuhost-${roomCode}`
+                : null;
+          if (gameSaveKey) {
+            let gameSave: string | null = null;
+            try {
+              gameSave = localStorage.getItem(gameSaveKey);
+            } catch {
+              /* ignore */
+            }
+            if (!gameSave) {
+              seed = initialPublic(
+                players.map((p) => ({ peerId: p.peerId, name: p.name })),
+                (saved.pub as PublicState).game,
+              );
+            }
+          }
         } else {
           throw new Error('no save');
         }
@@ -798,7 +826,7 @@ export default function App() {
           <div className="fixed top-0 left-0 right-0 z-50 bg-[#92a9e1] text-black">
             <div className="max-w-xl mx-auto px-4 py-2 flex items-center justify-between gap-2">
               <span className="text-sm font-semibold truncate">
-                Rejoin {session.room} as {session.name}
+                Resume {session.room} as {session.name}
                 {session.isHost ? ' (host)' : ''}?
               </span>
               <span className="flex gap-2 shrink-0">
@@ -806,7 +834,7 @@ export default function App() {
                   onClick={() => void join(session.isHost, session.room, session.name)}
                   className="text-sm font-bold underline"
                 >
-                  Rejoin
+                  Resume
                 </button>
                 <button
                   onClick={() => {
