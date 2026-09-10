@@ -102,6 +102,7 @@ export default function SecretHitler({
     context: 'pres-draw' | 'chanc-hand' | 'peek';
   } | null>(null);
   const [myInfo, setMyInfo] = useState<string | null>(null);
+  const [shError, setShError] = useState<string | null>(null);
 
   // ---- host truth ----
   const rolesRef = useRef<Record<string, SHRole>>({});
@@ -701,7 +702,12 @@ export default function SecretHitler({
     }
 
     const ids = initialRoster.map((p) => p.peerId);
-    if (ids.length < 5) return;
+    if (ids.length < 5 || ids.length > 10) {
+      setShError(
+        `Secret Hitler needs 5–10 players at the table — this room has ${ids.length}. Head back and invite more.`,
+      );
+      return;
+    }
     const roles = assignSHRoles(ids);
     rolesRef.current = roles;
     deckRef.current = buildPolicyDeck();
@@ -782,11 +788,25 @@ export default function SecretHitler({
   // ---------- render ----------
   if (!sh) {
     return (
-      <div data-game="secret-hitler" className="panel cut space-y-2">
-        <div className="font-display text-3xl uppercase">Secret Hitler</div>
-        <p className="text-sm text-white/60">
-          {isHost ? 'Seating the table…' : 'Joining the table…'}
-        </p>
+      <div data-game="secret-hitler" className="space-y-3">
+        <InvitePanel roomCode={roomCode} />
+        <div className="panel cut space-y-2">
+          <div className="font-display text-3xl uppercase">Secret Hitler</div>
+          {shError ? (
+            <>
+              <p className="text-sm text-red-300">{shError}</p>
+              {isHost && (
+                <button onClick={onExit} className="btn-accent">
+                  Back to lobby
+                </button>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-white/60">
+              {isHost ? 'Seating the table…' : 'Joining the table…'}
+            </p>
+          )}
+        </div>
       </div>
     );
   }

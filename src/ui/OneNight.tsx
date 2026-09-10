@@ -119,6 +119,7 @@ export default function OneNight({
   const [loneWolf, setLoneWolf] = useState(false);
   const [seen, setSeen] = useState<{ cards: ONURole[]; label: string } | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
+  const [onuError, setOnuError] = useState<string | null>(null);
 
   // ---- host truth ----
   const cardsRef = useRef<Cards>({});
@@ -523,7 +524,12 @@ export default function OneNight({
     }
 
     const ids = initialRoster.map((p) => p.peerId);
-    if (ids.length < 3 || ids.length > 10) return;
+    if (ids.length < 3 || ids.length > 10) {
+      setOnuError(
+        `One Night needs 3–10 players at the table — this room has ${ids.length}. Head back and invite more.`,
+      );
+      return;
+    }
     const pool = recommendedPool(ids.length);
     const cards = deal(pool, ids);
     cardsRef.current = cards;
@@ -578,11 +584,25 @@ export default function OneNight({
   // ---------- render ----------
   if (!onu) {
     return (
-      <div data-game="one-night" className="panel cut space-y-2">
-        <div className="font-display text-3xl uppercase">One Night</div>
-        <p className="text-sm text-white/60">
-          {isHost ? 'Dealing the table…' : 'Joining the table…'}
-        </p>
+      <div data-game="one-night" className="space-y-3">
+        <InvitePanel roomCode={roomCode} />
+        <div className="panel cut space-y-2">
+          <div className="font-display text-3xl uppercase">One Night</div>
+          {onuError ? (
+            <>
+              <p className="text-sm text-red-300">{onuError}</p>
+              {isHost && (
+                <button onClick={onExit} className="btn-accent">
+                  Back to lobby
+                </button>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-white/60">
+              {isHost ? 'Dealing the table…' : 'Joining the table…'}
+            </p>
+          )}
+        </div>
       </div>
     );
   }
