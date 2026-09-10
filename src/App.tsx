@@ -3,38 +3,31 @@ import { QRCodeSVG } from 'qrcode.react';
 import {
   Check,
   Copy,
-  Eye,
   Gavel,
   Info,
   Moon,
   Radio,
-  Skull,
-  Sun,
-  Syringe,
-  Trophy,
   User,
   Volume2,
   VolumeX,
-  Vote,
-  Wheat,
   X,
 } from 'lucide-react';
 import { HowToOverlay } from './ui/HowTo';
 import { DiagnosticsOverlay } from './ui/Diagnostics';
 import { logDiag, resetDiag } from './net/diagnostics';
 import { fetchTurnServers, getCachedTurn, primeTurn } from './net/turn';
-import { cancelSpeech, narrateNight, speakCue } from './ui/narrate';
-import { RoomFinePrint, SHFinePrint, WerewolfFinePrint } from './ui/About';
+import { cancelSpeech, speakCue } from './ui/narrate';
+import { OneNightFinePrint, RoomFinePrint, SHFinePrint } from './ui/About';
 import { HomeLogo, Landing, type GamePick } from './ui/Landing';
 import SecretHitler from './ui/SecretHitler';
+import OneNight from './ui/OneNight';
 import {
-  assignRoles,
-  checkWinner,
   makeRoomCode,
-  resolveNight,
-  resolveVote,
-  type Role,
-} from './game/werewolf/logic';
+} from './game/one-night/logic';
+// Classic multi-night engine stays for the shared lobby/transport effect
+// code that references its types; the classic table itself is superseded
+// (see docs/one-night.md).
+import type { Role } from './game/werewolf/logic';
 import {
   createRoom,
   type ActionMsg,
@@ -43,39 +36,15 @@ import {
 } from './net/transport';
 import {
   addPlayer,
-  disconnectedAlive,
   normalize,
   rejoin,
   setPresence,
   type Player,
 } from './net/presence';
 
-const ROLE_META: Record<Role, { label: string; Icon: typeof Moon; blurb: string }> = {
-  werewolf: {
-    label: 'Werewolf',
-    Icon: Moon,
-    blurb: 'Each night, agree with the pack on one victim. By day, blend in and push the vote elsewhere.',
-  },
-  seer: {
-    label: 'Seer',
-    Icon: Eye,
-    blurb: 'Each night, inspect one player to learn their true role. Share carefully — exposure gets you eaten.',
-  },
-  doctor: {
-    label: 'Doctor',
-    Icon: Syringe,
-    blurb: 'Each night, save one player. Saving the wolves\u2019 victim stops the kill.',
-  },
-  villager: {
-    label: 'Villager',
-    Icon: Wheat,
-    blurb: 'No night power. Watch, deduce, and vote by day — your voice is your weapon.',
-  },
-};
-
 const initialPublic = (
   players: { peerId: string; name: string }[],
-  game: 'werewolf' | 'secret-hitler' = 'werewolf',
+  game: 'werewolf' | 'secret-hitler' | 'one-night' = 'one-night',
 ): PublicState => ({
   phase: 'lobby',
   players: players.map((p) => ({ ...p, alive: true, online: true })),
@@ -181,19 +150,6 @@ export default function App() {
 
   const [pub, setPub] = useState<PublicState | null>(null);
   const [peerCount, setPeerCount] = useState(0);
-  const [myRole, setMyRole] = useState<Role | null>(() => {
-    // instant restore after refresh; host re-sends the role to confirm
-    try {
-      const saved = JSON.parse(localStorage.getItem('bg-myrole') ?? 'null');
-      if (saved && saved.room === (params.get('room') ?? localStorage.getItem('bg-room')) && typeof saved.role === 'string')
-        return saved.role as Role;
-    } catch {
-      /* no saved role */
-    }
-    return null;
-  });
-  const [seerSeen, setSeerSeen] = useState<string | null>(null);
-  const [picked, setPicked] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(() => loadSession());
   const [sound, setSound] = useState(
     () => localStorage.getItem('bg-sound') !== '0',
@@ -244,10 +200,6 @@ export default function App() {
     pub?.players.map((p) => ({ peerId: p.peerId, name: p.name })) ??
     rosterRef.current;
 
-  const myId = handle?.selfId ?? '';
-  const me = pub?.players.find((p) => p.peerId === myId) ?? null;
-  const alive = me?.alive ?? true;
-
   const join = async (host: boolean, code: string, playerName: string) => {
     const cleanName = playerName.trim().slice(0, 20) || 'Player';
     const cleanCode = code.trim().toUpperCase() || makeRoomCode();
@@ -278,8 +230,6 @@ export default function App() {
     setRoomCode(cleanCode);
     setIsHost(host);
     setInRoom(true);
-    setMyRole(null);
-    setSeerSeen(null);
   };
 
   useEffect(() => {
@@ -386,18 +336,18 @@ export default function App() {
     const roleAct = room.makeAction('role', {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onMessage: (data: any) => {
-        const role = (data?.role as Role) ?? null;
-        setMyRole(role);
-        if (role)
-          localStorage.setItem(
-            'bg-myrole',
-            JSON.stringify({ room: roomCode, role }),
-          );
+        // Legacy classic-game channel (superseded by One Night).
+        // Kept registered so in-flight classic sessions degrade quietly.
+        logDiag('role-recv', 'legacy classic role message ignored');
+        void data;
       },
     });
     const seerAct = room.makeAction('seer', {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      onMessage: (data: any) => setSeerSeen((data?.text as string) ?? null),
+      onMessage: (data: any) => {
+        logDiag('seer-recv', 'legacy classic seer message ignored');
+        void data;
+      },
     });
     const actAct = room.makeAction('act', {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -661,21 +611,13 @@ export default function App() {
                 : ['Host rebooted — night inputs reset.']),
             ].slice(-50),
           };
-          const me = players.find((p) => p.peerId === selfId);
-          if (me && rolesRef.current[selfId]) {
-            setMyRole(rolesRef.current[selfId]);
-            localStorage.setItem(
-              'bg-myrole',
-              JSON.stringify({ room: roomCode, role: rolesRef.current[selfId] }),
-            );
-          }
         } else {
           throw new Error('no save');
         }
       } catch {
         seed = initialPublic(
           [{ peerId: selfId, name: myName }],
-          selected === 'sh' ? 'secret-hitler' : 'werewolf',
+          selected === 'sh' ? 'secret-hitler' : 'one-night',
         );
       }
       clientToPeer.current[clientId] = selfId;
@@ -759,37 +701,23 @@ export default function App() {
     sendersRef.current?.sendPub(p as unknown as Record<string, unknown>);
   };
 
-  const hostStart = () => {
-    if (!handle || !pub) return;
-    const ids = pub.players.map((p) => p.peerId);
-    if (ids.length < 1) {
-      alert('Nobody here yet.');
-      return;
-    }
-    const demo = ids.length < 5;
-    const roles = assignRoles(ids);
-    rolesRef.current = roles;
-    nightRef.current = { wolfTarget: null, doctorSave: null, seerCheck: null, seerBy: null };
-    votesRef.current = {};
-    ids.forEach((id) => {
-      if (id === handle.selfId) setMyRole(roles[id]);
-      else sendersRef.current?.sendRole({ role: roles[id] }, id);
-    });
-    sendPubState({
-      phase: 'role',
-      players: pub.players.map((p) => ({ ...p, alive: true })),
-      dayCount: 1,
-      log: [`Game started with ${ids.length} players. Check your secret role.${demo ? ' Demo mode — fewer than 5.' : ''}`],
-      votes: {},
-      ready: [],
-      night: { wolf: false, save: false, see: false },
-      winner: null,
-    });
-  };
-
-  const pickGame = (game: 'werewolf' | 'secret-hitler') => {
+  const pickGame = (game: 'werewolf' | 'secret-hitler' | 'one-night') => {
     if (!isHost || !pub) return;
     sendPubState({ ...pub, game });
+  };
+
+  const startON = () => {
+    if (!handle || !pub) return;
+    const n = pub.players.length;
+    if (n < 3 || n > 10) {
+      alert('One Night needs 3-10 players.');
+      return;
+    }
+    sendPubState({
+      ...pub,
+      game: 'one-night',
+      log: [...pub.log, 'One night falls…'].slice(-50),
+    });
   };
 
   const startSH = () => {
@@ -823,151 +751,21 @@ export default function App() {
     });
   };
 
-  const hostToNight = () =>
-    pub &&
-    sendPubState({
-      ...pub,
-      phase: 'night',
-      votes: {},
-      ready: [],
-      night: { wolf: false, save: false, see: false },
-      log: [...pub.log, `Night ${pub.dayCount} falls…`].slice(-50),
-    });
-
-  const hostResolveNight = () => {
-    if (!pub || !handle) return;
-    const { diedId, seerResult } = resolveNight(
-      {
-        wolfTarget: nightRef.current.wolfTarget,
-        doctorSave: nightRef.current.doctorSave,
-        seerCheck: nightRef.current.seerCheck,
-      },
-      rolesRef.current,
-    );
-    if (nightRef.current.seerBy && seerResult && nightRef.current.seerCheck) {
-      const target = nightRef.current.seerCheck;
-      const tName = pub.players.find((p) => p.peerId === target)?.name ?? '?';
-      const text = `${tName} is ${seerResult.toUpperCase()}`;
-      if (nightRef.current.seerBy === handle.selfId) setSeerSeen(text);
-      else sendersRef.current?.sendSeer({ text }, nightRef.current.seerBy);
-    }
-    const players = pub.players.map((p) =>
-      p.peerId === diedId ? { ...p, alive: false } : p,
-    );
-    const diedName = pub.players.find((p) => p.peerId === diedId)?.name;
-    const winner = checkWinner(
-      rolesRef.current,
-      players.filter((p) => p.alive).map((p) => p.peerId),
-    );
-    nightRef.current = { wolfTarget: null, doctorSave: null, seerCheck: null, seerBy: null };
-    votesRef.current = {};
-    setPicked(null);
-    sendPubState({
-      ...pub,
-      phase: winner ? 'ended' : 'day',
-      players,
-      winner,
-      lastDead: diedId,
-      votes: {},
-      log: [
-        ...pub.log,
-        diedId
-          ? `Day ${pub.dayCount}: ${diedName} was killed.`
-          : `Day ${pub.dayCount}: nobody died.`,
-        ...(winner ? [`${winner} win!`] : []),
-      ].slice(-50),
-    });
-  };
-
-  const hostToVote = () =>
-    pub &&
-    sendPubState({
-      ...pub,
-      phase: 'vote',
-      log: [...pub.log, 'Vote: pick who to exile.'].slice(-50),
-    });
-
-  const hostResolveVote = () => {
+  const exitON = () => {
     if (!pub) return;
-    const aliveIds = pub.players.filter((p) => p.alive).map((p) => p.peerId);
-    const exiled = resolveVote(votesRef.current, aliveIds);
-    const players = pub.players.map((p) =>
-      p.peerId === exiled ? { ...p, alive: false } : p,
-    );
-    const exName = pub.players.find((p) => p.peerId === exiled)?.name;
-    const winner = checkWinner(
-      rolesRef.current,
-      players.filter((p) => p.alive).map((p) => p.peerId),
-    );
-    votesRef.current = {};
-    setPicked(null);
     sendPubState({
       ...pub,
-      phase: winner ? 'ended' : 'night',
-      players,
-      dayCount: pub.dayCount + 1,
-      winner,
-      lastExiled: exiled,
-      votes: {},
-      log: [
-        ...pub.log,
-        exiled ? `${exName} was exiled.` : 'Tie — nobody exiled.',
-        ...(winner ? [`${winner} win!`] : [`Night ${pub.dayCount + 1} falls…`]),
-      ].slice(-50),
-    });
-  };
-
-  const hostRestart = () => {
-    if (!pub) return;
-    votesRef.current = {};
-    nightRef.current = { wolfTarget: null, doctorSave: null, seerCheck: null, seerBy: null };
-    setMyRole(null);
-    setSeerSeen(null);
-    localStorage.removeItem('bg-myrole');
-    sendPubState({
-      ...pub,
+      game: 'one-night',
       phase: 'lobby',
       players: pub.players.map((p) => ({ ...p, alive: true })),
       dayCount: 1,
-      winner: null,
       votes: {},
+      ready: [],
+      winner: null,
       lastDead: null,
       lastExiled: null,
       log: [...pub.log, 'Back to lobby. Host can start again.'].slice(-50),
     });
-  };
-
-  // ---------- guest actions ----------
-  const sendGuestAction = (msg: ActionMsg) => {
-    if (!handle) return;
-    const full = { ...msg, client: clientId };
-    if (isHost) {
-      if (full.kind === 'night') {
-        if (full.nightKind === 'wolf') nightRef.current.wolfTarget = full.targetId;
-        if (full.nightKind === 'save') nightRef.current.doctorSave = full.targetId;
-        if (full.nightKind === 'see') {
-          nightRef.current.seerCheck = full.targetId;
-          nightRef.current.seerBy = handle.selfId;
-        }
-        const n = nightRef.current;
-        if (pub)
-          sendPubState({
-            ...pub,
-            night: {
-              wolf: n.wolfTarget != null,
-              save: n.doctorSave != null,
-              see: n.seerCheck != null,
-            },
-          });
-        return;
-      }
-      if (full.kind === 'vote' && full.targetId) {
-        votesRef.current[clientId] = full.targetId;
-        if (pub) sendPubState({ ...pub, votes: { ...votesRef.current } });
-      }
-      return;
-    }
-    sendersRef.current?.sendAct(full as unknown as Record<string, unknown>);
   };
 
   const leaveRoom = () => {
@@ -1044,7 +842,7 @@ export default function App() {
           {isSH ? (
             <h1 className="font-display text-4xl flex items-center gap-2"><Gavel size={30} /> Secret Hitler</h1>
           ) : (
-            <h1 className="font-display text-4xl flex items-center gap-2"><Moon size={30} /> Werewolf</h1>
+            <h1 className="font-display text-4xl flex items-center gap-2"><Moon size={30} /> One Night</h1>
           )}
           {isSH ? (
             <p className="text-sm text-white/70">
@@ -1053,7 +851,7 @@ export default function App() {
             </p>
           ) : (
             <p className="text-sm text-white/70">
-              Werewolf over the internet with a room code. No server, no
+              One Night over the internet with a room code. No server, no
               sign-up. One Host, everyone joins.
             </p>
           )}
@@ -1080,7 +878,7 @@ export default function App() {
           <input
             value={roomCode}
             onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-            placeholder="WOLF-XXXX"
+            placeholder="NIGHT-XXXXXX"
             className="w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2 outline-none font-mono"
           />
           <button
@@ -1101,7 +899,7 @@ export default function App() {
               Diagnostics
             </button>
           </p>
-          {isSH ? <SHFinePrint /> : <WerewolfFinePrint />}
+          {isSH ? <SHFinePrint /> : <OneNightFinePrint />}
         </div>
       </div>
       {showHelp && <HowToOverlay onClose={() => setShowHelp(false)} />}
@@ -1112,6 +910,7 @@ export default function App() {
 
   const phase = pub?.phase ?? 'lobby';
   const shActive = pub?.game === 'secret-hitler';
+  const onuActive = (pub?.game ?? 'one-night') === 'one-night';
 
   return (
     <div data-game="werewolf" className="min-h-screen p-3 lg:p-6 max-w-6xl mx-auto space-y-3">
@@ -1175,6 +974,15 @@ export default function App() {
           initialRoster={pub.players}
           onExit={exitSH}
         />
+      ) : onuActive && pub && handle ? (
+        <OneNight
+          handle={handle}
+          roomCode={roomCode}
+          name={name}
+          isHost={isHost}
+          initialRoster={pub.players}
+          onExit={exitON}
+        />
       ) : (
         <>
           {phase === 'lobby' && (
@@ -1194,9 +1002,9 @@ export default function App() {
                 </div>
               )}
               <div className="mt-1">
-                {(pub?.game ?? 'werewolf') === 'secret-hitler'
+                {(pub?.game ?? 'one-night') === 'secret-hitler'
                   ? 'Secret Hitler needs 5-10 players.'
-                  : '5+ for a full hunt · fewer starts a demo.'}
+                  : 'One Night needs 3-10 players · 3 cards in the center.'}
               </div>
               <div className="mt-2 flex gap-2">
                 <button
@@ -1278,14 +1086,14 @@ export default function App() {
             <div className="lg:col-span-2 space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={() => pickGame('werewolf')}
+                  onClick={() => pickGame('one-night')}
                   className={`rounded px-2 py-2 text-sm font-bold border ${
-                    (pub?.game ?? 'werewolf') === 'werewolf'
+                    (pub?.game ?? 'one-night') === 'one-night'
                       ? 'bg-[#92a9e1] text-black border-transparent'
                       : 'bg-black/30 border-white/15 text-white/70'
                   }`}
                 >
-                  Werewolf
+                  One Night
                 </button>
                 <button
                   onClick={() => pickGame('secret-hitler')}
@@ -1303,8 +1111,8 @@ export default function App() {
                   Start Secret Hitler ({pub?.players.length ?? 0})
                 </button>
               ) : (
-                <button onClick={hostStart} className="btn-accent">
-                  Start game ({pub?.players.length ?? 0})
+                <button onClick={startON} className="btn-accent">
+                  Start One Night ({pub?.players.length ?? 0})
                 </button>
               )}
             </div>
@@ -1313,213 +1121,30 @@ export default function App() {
               Waiting for host to start…
               {pub?.game === 'secret-hitler'
                 ? ' Secret Hitler table opening.'
-                : ''}
+                : ' One night falls…'}
             </p>
           )}
         </div>
       )}
 
-      {phase !== 'lobby' && pub && (
+      {/* Legacy classic-Werewolf renderer: only for games started before the
+          One Night conversion (pub.game 'werewolf'). New games use OneNight. */}
+      {phase !== 'lobby' && pub && (pub.game ?? 'one-night') === 'werewolf' && (
         <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-5 lg:items-start">
           <div key={phase} className="phase-enter space-y-3 lg:space-y-4">
-          <div className="bg-white/5 border border-white/10 cut p-4">
-            <div className="text-xs uppercase text-white/50">Your role</div>
-            <div className="font-display text-3xl flex items-center gap-2">
-              {myRole ? (
-                <>
-                  {(() => {
-                    const { label, Icon } = ROLE_META[myRole];
-                    return (
-                      <>
-                        <Icon size={26} /> {label}
-                      </>
-                    );
-                  })()}
-                </>
-              ) : (
-                '…waiting for host…'
-              )}
-            </div>
-            {seerSeen && <div className="text-xs text-violet-300 mt-1 flex items-center gap-1"><Eye size={12} /> {seerSeen}</div>}
-            {myRole && (
-              <p className="text-xs text-white/60 mt-1">{ROLE_META[myRole].blurb}</p>
-            )}
-            {!alive && <div className="text-sm text-white/60 mt-1">You are dead — watch only.</div>}
-          </div>
-
-          {phase === 'role' && (
-            <div className="bg-white/5 border border-white/10 cut p-4 space-y-2">
-              <p className="text-sm text-white/70">Memorize your role, then mark ready. The host starts the first night.</p>
-              {(() => {
-                const aliveIds = pub.players.filter((p) => p.alive);
-                const readyCount =
-                  (pub.ready?.length ?? 0) + (isHost ? 1 : 0);
-                const amIReady =
-                  isHost || (pub.ready ?? []).includes(clientId);
-                return (
-                  <>
-                    <div className="text-xs text-white/60">
-                      {readyCount}/{aliveIds.length} ready
-                    </div>
-                    {!isHost && alive && !amIReady && (
-                      <button
-                        onClick={() =>
-                          sendGuestAction({
-                            kind: 'ready',
-                            targetId: null,
-                            fromName: name,
-                          })
-                        }
-                        className="btn-accent"
-                      >
-                        I'm ready
-                      </button>
-                    )}
-                    {!isHost && alive && amIReady && (
-                      <div className="text-sm text-white/60 flex items-center gap-1">
-                        <Check size={14} /> Ready — waiting for the host…
-                      </div>
-                    )}
-                    {isHost && (
-                      <button onClick={hostToNight} className="w-full rounded bg-white text-black font-bold py-2">Start Night 1</button>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
-          )}
-
-          {phase === 'night' && (
-            <NightPanel
-              myRole={myRole}
-              players={pub.players}
-              alive={alive}
-              picked={picked}
-              setPicked={setPicked}
-              onAct={(nightKind, targetId) =>
-                sendGuestAction({ kind: 'night', nightKind, targetId, fromName: name })
-              }
-            />
-          )}
-
-          {(phase === 'day' || phase === 'vote') && (
-            <VotePanel
-              phase={phase}
-              players={pub.players}
-              votes={pub.votes ?? {}}
-              alive={alive}
-              picked={picked}
-              onVote={(targetId) => {
-                setPicked(targetId);
-                sendGuestAction({ kind: 'vote', targetId, fromName: name });
-              }}
-            />
-          )}
-
-          {phase === 'ended' && (
-            <div className="bg-white/5 border border-white/10 cut p-4 text-center space-y-2">
-              <div className="font-display text-3xl flex items-center justify-center gap-2"><Trophy size={28} /> {pub.winner} win!</div>
+            <div className="bg-white/5 border border-white/10 cut p-4">
+              <div className="text-xs uppercase text-white/50">Classic table (retired)</div>
+              <p className="text-sm text-white/60">
+                This room started a classic game before the One Night update.
+                Back to lobby and start a One Night table.
+              </p>
               {isHost && (
-                <button onClick={hostRestart} className="btn-accent">Back to lobby</button>
+                <button onClick={exitON} className="btn-accent">Back to lobby</button>
               )}
             </div>
-          )}
-
-          {isHost && phase === 'night' && (
-            <div className="panel cut space-y-2">
-              <div className="text-xs uppercase text-white/50">Night desk — picks landed</div>
-              {disconnectedAlive(pub.players).length > 0 && (
-                <p className="text-xs text-amber-300/90">
-                  Offline: {disconnectedAlive(pub.players).map((p) => p.name).join(', ')} — their input may not arrive.
-                </p>
-              )}
-              {(() => {
-                const vals = Object.values(rolesRef.current);
-                const rows: { key: 'wolf' | 'save' | 'see'; label: string }[] = [];
-                if (vals.includes('werewolf')) rows.push({ key: 'wolf', label: 'Wolves decided' });
-                if (vals.includes('doctor')) rows.push({ key: 'save', label: 'Doctor saved' });
-                if (vals.includes('seer')) rows.push({ key: 'see', label: 'Seer peeked' });
-                const flags = pub.night ?? { wolf: false, save: false, see: false };
-                return (
-                  <ul className="text-sm space-y-1">
-                    {rows.map((r) => (
-                      <li key={r.key} className="flex items-center gap-2 text-white/80">
-                        {flags[r.key] ? (
-                          <Check size={14} className="text-[#92a9e1]" />
-                        ) : (
-                          <span className="inline-block h-3.5 w-3.5 border border-white/30" />
-                        )}
-                        {r.label}
-                      </li>
-                    ))}
-                  </ul>
-                );
-              })()}
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => {
-                    const vals = Object.values(rolesRef.current);
-                    void narrateNight(pub.dayCount, {
-                      wolves: vals.includes('werewolf'),
-                      seer: vals.includes('seer'),
-                      doctor: vals.includes('doctor'),
-                    });
-                  }}
-                  className="rounded border border-white/20 py-2 text-sm font-semibold"
-                >
-                  Narrate night
-                </button>
-                <button onClick={hostResolveNight} className="rounded bg-amber-300 text-black font-bold py-2 text-sm">Resolve → Day</button>
-              </div>
-            </div>
-          )}
-          {isHost && phase === 'day' && (
-            <button onClick={hostToVote} className="w-full rounded bg-white text-black font-bold py-2.5">Go to vote</button>
-          )}
-          {isHost && phase === 'vote' && (
-            <div className="space-y-2">
-              {disconnectedAlive(pub.players).length > 0 && (
-                <p className="text-xs text-amber-300/90">
-                  Offline: {disconnectedAlive(pub.players).map((p) => p.name).join(', ')} — their input may not arrive.
-                </p>
-              )}
-              <button onClick={hostResolveVote} className="w-full rounded bg-amber-300 text-black font-bold py-2.5">Resolve vote → Night</button>
-            </div>
-          )}
           </div>
           <div className="space-y-3 lg:space-y-4 lg:sticky lg:top-4 mt-3 lg:mt-0">
-
-          <div className="bg-white/5 border border-white/10 cut p-3">
-            <div className="text-xs uppercase text-white/50 mb-1">Players</div>
-            <ul className="text-sm space-y-1">
-              {pub.players.map((p) => {
-                const offline = p.alive && !p.online;
-                return (
-                  <li
-                    key={p.peerId}
-                    className={
-                      !p.alive
-                        ? 'line-through text-white/40 flex items-center gap-2'
-                        : offline
-                          ? 'text-amber-300/80 flex items-center gap-2'
-                          : 'flex items-center gap-2'
-                    }
-                  >
-                    {!p.alive ? <Skull size={14} /> : <User size={14} />} {p.name}
-                    {offline && <span className="text-xs">reconnecting…</span>}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-
-          <div className="bg-black/30 border border-white/10 cut p-3">
-            <div className="text-xs uppercase text-white/50 mb-1">Game log · Day {pub.dayCount}</div>
-            <ul className="text-xs space-y-1 text-white/75 max-h-40 overflow-auto">
-              {[...pub.log].reverse().map((l, i) => <li key={i}>• {l}</li>)}
-            </ul>
-          </div>
-          <RoomFinePrint game="werewolf" />
+            <RoomFinePrint game="werewolf" />
           </div>
         </div>
       )}
@@ -1527,104 +1152,6 @@ export default function App() {
       )}
       {showHelp && <HowToOverlay onClose={() => setShowHelp(false)} />}
       {showDiag && <DiagnosticsOverlay onClose={() => setShowDiag(false)} />}
-    </div>
-  );
-}
-
-function NightPanel(props: {
-  myRole: Role | null;
-  players: { peerId: string; name: string; alive: boolean }[];
-  alive: boolean;
-  picked: string | null;
-  setPicked: (s: string | null) => void;
-  onAct: (kind: 'wolf' | 'save' | 'see', targetId: string | null) => void;
-}) {
-  const { myRole, players, alive } = props;
-  const targets = players.filter((p) => p.alive);
-  if (!alive) return <div className="text-sm text-white/60">You are dead. Waiting for dawn…</div>;
-  if (!myRole) return <div className="text-sm text-white/60">Waiting for role…</div>;
-  return (
-    <div className="bg-white/5 border border-white/10 cut p-4 space-y-2">
-      <div className="font-semibold flex items-center gap-2">
-        <Moon size={16} className="moon-pulse" /> Night — {myRole === 'werewolf' ? 'pick a kill' : myRole === 'seer' ? 'pick to inspect' : myRole === 'doctor' ? 'pick to save' : 'sleep… villagers wait'}
-      </div>
-      {myRole !== 'villager' && (
-        <>
-          <div className="grid grid-cols-2 gap-2">
-            {targets.map((p) => (
-              <button
-                key={p.peerId}
-                onClick={() => {
-                  try {
-                    navigator.vibrate?.(15);
-                  } catch {
-                    /* no haptics */
-                  }
-                  props.setPicked(p.peerId);
-                  props.onAct(myRole === 'werewolf' ? 'wolf' : myRole === 'seer' ? 'see' : 'save', p.peerId);
-                }}
-                className={`rounded px-2 py-1.5 text-sm border ${props.picked === p.peerId ? 'bg-[#92a9e1] text-black' : 'bg-black/30 border-white/10'}`}
-              >
-                {p.name}
-              </button>
-            ))}
-          </div>
-          {props.picked ? (
-            <p className="text-xs text-[#92a9e1] flex items-center gap-1">
-              <Check size={12} /> Locked on{' '}
-              {targets.find((t) => t.peerId === props.picked)?.name} — tap
-              another to change before the host resolves.
-            </p>
-          ) : (
-            <p className="text-xs text-white/50">Tap to lock your pick.</p>
-          )}
-        </>
-      )}
-      {myRole === 'villager' && <p className="text-sm text-white/60">Close your eyes… waiting for host to resolve.</p>}
-    </div>
-  );
-}
-
-function VotePanel(props: {
-  phase: string;
-  players: { peerId: string; name: string; alive: boolean }[];
-  votes: Record<string, string>;
-  alive: boolean;
-  picked: string | null;
-  onVote: (targetId: string) => void;
-}) {
-  const counts = new Map<string, number>();
-  Object.values(props.votes).forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1));
-  return (
-    <div className="bg-white/5 border border-white/10 cut p-4 space-y-2">
-      <div className="font-semibold flex items-center gap-2">{props.phase === 'day' ? <><Sun size={16} /> Day — discuss, then host opens vote</> : <><Vote size={16} /> Vote — tap to exile</>}</div>
-      {props.phase === 'day' && <div className="daybreak" />}
-      <div className="grid grid-cols-2 gap-2">
-        {props.players.filter((p) => p.alive).map((p) => (
-          <button
-            key={p.peerId}
-            disabled={!props.alive || props.phase !== 'vote'}
-            onClick={() => {
-              try {
-                navigator.vibrate?.(15);
-              } catch {
-                /* no haptics */
-              }
-              props.onVote(p.peerId);
-            }}
-            className={`rounded px-2 py-1.5 text-sm border disabled:opacity-50 ${props.picked === p.peerId ? 'bg-red-400 text-black' : 'bg-black/30 border-white/10'}`}
-          >
-            {p.name} {counts.get(p.peerId) ? `(${counts.get(p.peerId)})` : ''}
-          </button>
-        ))}
-      </div>
-      {props.phase === 'vote' && props.picked && (
-        <p className="text-xs text-red-300 flex items-center gap-1">
-          <Check size={12} /> Voting{' '}
-          {props.players.find((p) => p.peerId === props.picked)?.name} — tap
-          another to switch before the host resolves.
-        </p>
-      )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import type {
   SHRole,
   SHWinner,
 } from '../game/secret-hitler/logic';
+import type { ONURole } from '../game/one-night/logic';
 import { createWsRoom } from './ws-transport';
 
 export type { Player } from './presence';
@@ -67,7 +68,7 @@ export interface PublicState {
   lastDead?: string | null;
   lastExiled?: string | null;
   /** lobby game selection; Secret Hitler table mounts when set */
-  game?: 'werewolf' | 'secret-hitler';
+  game?: 'werewolf' | 'secret-hitler' | 'one-night';
   [k: string]: unknown;
 }
 
@@ -160,6 +161,68 @@ export interface SHActMsg {
   index?: number;
   ja?: boolean;
   agree?: boolean;
+  client: string;
+  [k: string]: unknown;
+}
+
+// ---------------- One Night Ultimate Werewolf (unofficial fan
+// implementation; mechanics original code, see docs/one-night.md) ----------------
+
+export type ONUPhase = 'role' | 'night' | 'day' | 'vote' | 'ended';
+
+export interface ONUPublic {
+  phase: ONUPhase;
+  players: Player[];
+  /** dealt pool is public info (tokens on the table) */
+  pool: ONURole[];
+  /** voter client -> suspect peerId */
+  votes: Record<string, string>;
+  /** clients ready during role phase */
+  ready: string[];
+  /** night inputs landed (flags only, never targets) */
+  night: { lone: boolean; seer: boolean; robber: boolean; trouble: boolean; drunk: boolean };
+  died: string[];
+  winners: string[];
+  reasons: string[];
+  /** revealed at ended only */
+  finalCards?: Record<string, ONURole>;
+  centerCards?: ONURole[];
+  log: string[];
+  [k: string]: unknown;
+}
+
+/** Private: dealt card + night briefing (who you wake with). */
+export interface ONURoleMsg {
+  role: ONURole;
+  /** peerIds relevant to you: pack/masons, or wolves for the minion */
+  kin: string[];
+  loneWolf: boolean;
+  [k: string]: unknown;
+}
+
+/** Private night views (seer / lone wolf / insomniac). */
+export interface ONUSeenMsg {
+  cards: ONURole[];
+  label: string;
+  [k: string]: unknown;
+}
+
+export interface ONUActMsg {
+  kind:
+    | 'sync'
+    | 'ready'
+    | 'lone'
+    | 'seer-player'
+    | 'seer-center'
+    | 'robber'
+    | 'trouble'
+    | 'drunk'
+    | 'hunter-point'
+    | 'vote';
+  targetId?: string | null;
+  secondId?: string | null;
+  index?: number;
+  pair?: [number, number];
   client: string;
   [k: string]: unknown;
 }

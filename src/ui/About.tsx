@@ -1,13 +1,14 @@
 import { Moon, Vote } from 'lucide-react';
 
 /** Fine print, game-specific. Render at the bottom of game homescreens only. */
-export function WerewolfFinePrint() {
+export function OneNightFinePrint() {
   return (
     <p className="text-[11px] leading-relaxed text-white/35 flex gap-1.5">
       <Moon size={12} className="shrink-0 mt-0.5" />
       <span>
-        Werewolf is a folk party game (1986, D. Davidoff). Our code, wording
-        and art are original — no affiliation with any published edition.
+        Unofficial fan adaptation of One Night Ultimate Werewolf (Ted
+        Alspach / Bezier Games). Rules can&apos;t be copyrighted; our code,
+        wording and art are original — no affiliation with Bezier Games.
         Fan project, non-commercial, code MIT.
       </span>
     </p>

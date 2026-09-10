@@ -60,48 +60,77 @@ interface CeremonyStep {
 }
 
 /**
- * Fixed-order night ceremony. Every wake gets its matching sleep, roles
- * absent from this table are skipped cleanly, and each open-eyes step
- * gets real deliberation time before the close.
+ * One Night ceremony in official call order. Every wake gets its matching
+ * sleep, roles absent from this table are skipped cleanly, and each
+ * open-eyes step gets real deliberation time before the close.
  */
-export async function narrateNight(
-  day: number,
-  opts: { wolves: boolean; seer: boolean; doctor: boolean },
-) {
+export async function narrateONUNight(roles: string[]) {
   const id = ++runId;
   try {
     speechSynthesis.cancel();
   } catch {
     /* no speech support */
   }
+  const has = (r: string) => roles.includes(r);
   const seq: CeremonyStep[] = [
-    { say: `Night ${day} falls. Everyone, close your eyes.`, think: 2500 },
+    { say: 'Night falls on the village. Everyone, close your eyes.', think: 2500 },
   ];
-  if (opts.wolves)
+  if (has('werewolf'))
     seq.push(
       {
-        say: 'Werewolves, open your eyes. Silently agree on one victim.',
-        think: 9000,
+        say: 'Werewolves, open your eyes and look for the other werewolf.',
+        think: 8000,
       },
       { say: 'Werewolves, close your eyes.' },
     );
-  if (opts.doctor)
+  if (has('minion'))
     seq.push(
-      {
-        say: 'Doctor, open your eyes. Choose one person to save.',
-        think: 9000,
-      },
-      { say: 'Doctor, close your eyes.' },
+      { say: 'Minion, open your eyes. Werewolves, stick out your thumb.', think: 7000 },
+      { say: 'Werewolves, put your thumbs away. Minion, close your eyes.' },
     );
-  if (opts.seer)
+  if (has('mason'))
+    seq.push(
+      { say: 'Masons, open your eyes and look for the other mason.', think: 7000 },
+      { say: 'Masons, close your eyes.' },
+    );
+  if (has('seer'))
     seq.push(
       {
-        say: 'Seer, open your eyes. Choose one person to inspect.',
-        think: 9000,
+        say: 'Seer, open your eyes. You may look at one player\u2019s card, or two cards from the center.',
+        think: 10000,
       },
       { say: 'Seer, close your eyes.' },
     );
-  seq.push({ say: 'Everyone, wake up. It is dawn.' });
+  if (has('robber'))
+    seq.push(
+      {
+        say: 'Robber, open your eyes. You may take another player\u2019s card and look at it.',
+        think: 10000,
+      },
+      { say: 'Robber, close your eyes.' },
+    );
+  if (has('troublemaker'))
+    seq.push(
+      {
+        say: 'Troublemaker, open your eyes. You may switch the cards of two other players, without looking.',
+        think: 10000,
+      },
+      { say: 'Troublemaker, close your eyes.' },
+    );
+  if (has('drunk'))
+    seq.push(
+      {
+        say: 'Drunk, open your eyes and exchange your card with a card from the center, without looking.',
+        think: 8000,
+      },
+      { say: 'Drunk, close your eyes.' },
+    );
+  if (has('insomniac'))
+    seq.push(
+      { say: 'Insomniac, open your eyes and look at your card.', think: 6000 },
+      { say: 'Insomniac, close your eyes.' },
+    );
+  seq.push({ say: 'Everyone, wake up. It is dawn. Find the werewolves.' });
 
   for (const step of seq) {
     if (runId !== id) return;
