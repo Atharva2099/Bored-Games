@@ -17,6 +17,8 @@ export function PreDeal({
   isHost,
   onSeat,
   onExit,
+  onAddBot,
+  onRemoveBot,
 }: {
   game: InviteGame;
   title: string;
@@ -27,6 +29,8 @@ export function PreDeal({
   isHost: boolean;
   onSeat: () => void;
   onExit: () => void;
+  onAddBot: () => void;
+  onRemoveBot: (peerId: string) => void;
 }) {
   const n = roster.length;
   const ready = n >= min && n <= max;
@@ -38,7 +42,7 @@ export function PreDeal({
       <InvitePanel roomCode={roomCode} game={game} />
       <div className="panel cut space-y-3">
         <div className="font-display text-3xl uppercase">{title}</div>
-        <AvatarGrid players={roster} minNeeded={min} />
+        <AvatarGrid players={roster} minNeeded={min} onRemoveBot={isHost ? onRemoveBot : undefined} />
         {isHost ? (
           <>
             <button
@@ -51,6 +55,13 @@ export function PreDeal({
                 : n > max
                   ? `Too many (${n}/${max})`
                   : `Need ${min - n} more`}
+            </button>
+            <button
+              onClick={onAddBot}
+              disabled={n >= max}
+              className="w-full rounded border border-dashed border-purple-300/40 px-3 py-2 text-sm text-purple-200/90 disabled:opacity-40"
+            >
+              + Add bot (for testing)
             </button>
             <button
               onClick={onExit}

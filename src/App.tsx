@@ -1051,6 +1051,8 @@ export default function App() {
           isHost={isHost}
           initialRoster={pub.players}
           onExit={exitSH}
+          onAddBot={addBot}
+          onRemoveBot={removeBot}
         />
       ) : onuActive && pub && handle ? (
         <OneNight
@@ -1060,6 +1062,8 @@ export default function App() {
           isHost={isHost}
           initialRoster={pub.players}
           onExit={exitON}
+          onAddBot={addBot}
+          onRemoveBot={removeBot}
         />
       ) : (
         <>

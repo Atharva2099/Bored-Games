@@ -64,6 +64,8 @@ interface Props {
   isHost: boolean;
   initialRoster: Player[];
   onExit: () => void;
+  onAddBot: () => void;
+  onRemoveBot: (peerId: string) => void;
 }
 
 export default function SecretHitler({
@@ -73,6 +75,8 @@ export default function SecretHitler({
   isHost,
   initialRoster,
   onExit,
+  onAddBot,
+  onRemoveBot,
 }: Props) {
   const selfId = handle.selfId;
   const clientId = getClient();
@@ -956,6 +960,8 @@ export default function SecretHitler({
         isHost={isHost}
         onSeat={() => dealTable(liveRoster.current)}
         onExit={onExit}
+        onAddBot={onAddBot}
+        onRemoveBot={onRemoveBot}
       />
     );
   }

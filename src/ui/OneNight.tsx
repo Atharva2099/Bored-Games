@@ -84,6 +84,8 @@ interface Props {
   isHost: boolean;
   initialRoster: Player[];
   onExit: () => void;
+  onAddBot: () => void;
+  onRemoveBot: (peerId: string) => void;
 }
 
 export default function OneNight({
@@ -93,6 +95,8 @@ export default function OneNight({
   isHost,
   initialRoster,
   onExit,
+  onAddBot,
+  onRemoveBot,
 }: Props) {
   const selfId = handle.selfId;
   const clientId = getClient();
@@ -754,6 +758,8 @@ export default function OneNight({
         isHost={isHost}
         onSeat={() => dealTable(liveRoster.current)}
         onExit={onExit}
+        onAddBot={onAddBot}
+        onRemoveBot={onRemoveBot}
       />
     );
   }
