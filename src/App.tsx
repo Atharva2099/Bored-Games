@@ -18,7 +18,7 @@ import { fetchTurnServers, getCachedTurn, primeTurn } from './net/turn';
 import { cancelSpeech, speakCue } from './ui/narrate';
 import { OneNightFinePrint, RoomFinePrint, SHFinePrint } from './ui/About';
 import { HomeLogo, Landing, type GamePick } from './ui/Landing';
-import { RosterList } from './ui/Roster';
+import { AvatarGrid } from './ui/Roster';
 import SecretHitler from './ui/SecretHitler';
 import OneNight from './ui/OneNight';
 import {
@@ -1080,8 +1080,10 @@ export default function App() {
               )}
             </div>
           </div>
-          <div className="text-xs uppercase text-white/50">Players ({(pub?.players ?? []).length})</div>
-          <RosterList players={pub?.players ?? []} />
+          <AvatarGrid
+            players={pub?.players ?? []}
+            minNeeded={(pub?.game ?? 'one-night') === 'secret-hitler' ? 5 : 3}
+          />
           <div className="text-xs text-white/50">
             Signal:{' '}
             {peerCount > 0

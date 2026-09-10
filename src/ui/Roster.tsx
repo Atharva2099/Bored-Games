@@ -2,9 +2,65 @@ import { Skull, User } from 'lucide-react';
 import type { Player } from '../net/presence';
 
 /**
- * Full roster: every joined player with alive + connection status.
- * `extra` renders a right-aligned tag per player (e.g. president flags).
+ * Lobby avatar grid: placeholder user icons with names underneath.
+ * Joined players get filled avatars (amber while reconnecting);
+ * empty slots up to `minNeeded` render as dashed "waiting" placeholders.
  */
+export function AvatarGrid({
+  players,
+  minNeeded,
+}: {
+  players: Player[];
+  minNeeded: number;
+}) {
+  const emptySlots = Math.max(0, Math.min(minNeeded, 10) - players.length);
+  return (
+    <div>
+      <div className="text-xs uppercase text-white/50 mb-2">
+        Players ({players.length}
+        {minNeeded > 0 ? ` / ${minNeeded} to start` : ''})
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {players.map((p) => {
+          const offline = p.alive && p.online === false;
+          const initial = (p.name.trim()[0] ?? '?').toUpperCase();
+          return (
+            <div key={p.peerId} className="flex flex-col items-center gap-1 w-16">
+              <div
+                className="h-14 w-14 rounded-full border-2 flex items-center justify-center"
+                style={
+                  offline
+                    ? { borderColor: 'rgba(252,211,77,0.7)', color: '#fcd34d' }
+                    : { borderColor: '#92a9e1', color: '#92a9e1', background: 'rgba(146,169,225,0.08)' }
+                }
+              >
+                <span className="font-display text-2xl leading-none">{initial}</span>
+              </div>
+              <span
+                className={`text-[11px] leading-tight w-full text-center truncate ${
+                  offline ? 'text-amber-200/80' : 'text-white/80'
+                }`}
+              >
+                {p.name}
+              </span>
+              {offline && (
+                <span className="text-[10px] text-amber-300/70 -mt-1">joining…</span>
+              )}
+            </div>
+          );
+        })}
+        {Array.from({ length: emptySlots }).map((_, i) => (
+          <div key={`empty-${i}`} className="flex flex-col items-center gap-1 w-16">
+            <div className="h-14 w-14 rounded-full border-2 border-dashed border-white/20 flex items-center justify-center">
+              <User size={20} className="text-white/25" />
+            </div>
+            <span className="text-[11px] leading-tight text-white/30">waiting…</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 export function RosterList({
   players,
   extra,
