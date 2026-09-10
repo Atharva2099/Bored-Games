@@ -129,6 +129,12 @@ export default function OneNight({
   const peerToClient = useRef<Record<string, string>>({});
   const seatByClient = useRef<Record<string, string>>({});
   const sendersRef = useRef<Senders | null>(null);
+  const seenRef = useRef<Record<string, { cards: import('../game/one-night/logic').ONURole[]; label: string }>>({});
+  const pendingRef = useRef<{
+    msg: ONUActMsg;
+    tries: number;
+    phase: ONUPublic['phase'];
+  } | null>(null);
   const onuRef = useRef<ONUPublic | null>(null);
   const isHostRef = useRef(isHost);
   const initedRef = useRef(false);
@@ -246,6 +252,12 @@ export default function OneNight({
     }
     if (m.kind === 'sync') {
       sendersRef.current?.pub(cur as unknown as Record<string, unknown>, fromPeer);
+      // re-deal anything private this peer should hold: role + night views.
+      // Covers drops + refreshes.
+      dealRole(fromPeer);
+      const seen = seenRef.current[fromPeer];
+      if (seen)
+        sendersRef.current?.seen(seen as unknown as Record<string, unknown>, fromPeer);
       return;
     }
     if (!cur.players.some((p) => p.peerId === fromPeer)) return;
@@ -376,6 +388,7 @@ export default function OneNight({
               : 'Your final card';
       // insomniac viewers hold insomniac in FINAL cards
       const tag = final[viewer] === 'insomniac' && cardsRef.current[viewer] !== 'insomniac' ? 'Your final card' : label;
+      seenRef.current[viewer] = { cards, label: tag };
       tell(viewer, 'seen', { cards, label: tag });
     }
     setSeen(null);
@@ -429,6 +442,14 @@ export default function OneNight({
       act: (d, t) => void act.send(d as never, t ? { target: t } : undefined),
     };
 
+    // Host heartbeat: rebroadcast full state so late/dropped joiners
+    // converge even if they missed the original broadcasts.
+    const beat = setInterval(() => {
+      const cur = onuRef.current;
+      if (isHostRef.current && cur)
+        sendersRef.current?.pub(cur as unknown as Record<string, unknown>);
+    }, 5000);
+
     if (isHost && !initedRef.current) {
       initedRef.current = true;
       initGame();
@@ -445,8 +466,12 @@ export default function OneNight({
       return () => {
         clearTimeout(t);
         clearInterval(retry);
+        clearInterval(beat);
       };
     }
+    return () => {
+      clearInterval(beat);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handle]);
 
@@ -579,7 +604,45 @@ export default function OneNight({
       return;
     }
     sendersRef.current?.act(full as unknown as Record<string, unknown>);
+    // Ack-retry: same protection as SecretHitler — re-send until the
+    // broadcast reflects the action, the phase moves on, or 5 tries pass.
+    pendingRef.current = {
+      msg: full,
+      tries: 0,
+      phase: onuRef.current?.phase ?? 'role',
+    };
   };
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      const p = pendingRef.current;
+      const cur = onuRef.current;
+      if (!p || !cur || isHostRef.current) return;
+      const flagFor: Record<string, keyof NonNullable<ONUPublic['night']> | null> = {
+        lone: 'lone',
+        'seer-player': 'seer',
+        'seer-center': 'seer',
+        robber: 'robber',
+        trouble: 'trouble',
+        drunk: 'drunk',
+      };
+      const flag = flagFor[p.msg.kind];
+      const done =
+        cur.phase !== p.phase ||
+        p.tries >= 5 ||
+        (p.msg.kind === 'vote' && cur.votes[clientId] !== undefined) ||
+        (p.msg.kind === 'ready' && (cur.ready ?? []).includes(clientId)) ||
+        (flag && cur.night?.[flag] === true);
+      if (done) {
+        pendingRef.current = null;
+        return;
+      }
+      p.tries++;
+      sendersRef.current?.act(p.msg as unknown as Record<string, unknown>);
+    }, 2000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handle]);
 
   // ---------- render ----------
   if (!onu) {

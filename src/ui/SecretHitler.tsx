@@ -120,6 +120,11 @@ export default function SecretHitler({
   const peerToClient = useRef<Record<string, string>>({});
   const seatByClient = useRef<Record<string, string>>({});
   const sendersRef = useRef<Senders | null>(null);
+  const pendingRef = useRef<{
+    msg: SHActMsg;
+    tries: number;
+    phase: SHPublic['phase'];
+  } | null>(null);
   const shRef = useRef<SHPublic | null>(null);
   const isHostRef = useRef(isHost);
   const initedRef = useRef(false);
@@ -286,6 +291,16 @@ export default function SecretHitler({
   });
 
   // ---------- host message handling ----------
+  const dealRole = (peerId: string) => {
+    const role = rolesRef.current[peerId];
+    if (!role) return;
+    const k = shKnowledge(rolesRef.current);
+    const names = k
+      .knownFascistsFor(peerId)
+      .map((id) => (rolesRef.current[id] ? nameOf(id) : id));
+    void tell(peerId, 'shrole', { role, knownNames: names });
+  };
+
   const rekeySeat = (oldPeer: string, newPeer: string) => {
     if (rolesRef.current[oldPeer] !== undefined) {
       rolesRef.current[newPeer] = rolesRef.current[oldPeer];
@@ -309,13 +324,7 @@ export default function SecretHitler({
         );
     }
     const role = rolesRef.current[newPeer];
-    if (role) {
-      const k = shKnowledge(rolesRef.current);
-      const names = k
-        .knownFascistsFor(newPeer)
-        .map((id) => rolesRef.current[id] ? nameOf(id) : id);
-      void tell(newPeer, 'shrole', { role, knownNames: names });
-    }
+    if (role) dealRole(newPeer);
   };
 
   const doAct = (m: SHActMsg, fromPeer: string) => {
@@ -334,8 +343,17 @@ export default function SecretHitler({
       cur.players.some((p) => p.peerId === fromPeer);
     if (m.kind === 'sync') {
       const s = sendersRef.current;
-      if (s)
+      if (s) {
         void s.shpub(cur as unknown as Record<string, unknown>, fromPeer);
+        // re-deal anything private this peer should hold: roles, tiles in
+        // transit, investigate results. Covers drops + refreshes.
+        dealRole(fromPeer);
+        if (holderRef.current?.peerId === fromPeer && drawnRef.current.length > 0)
+          void s.shcards(
+            { cards: [...drawnRef.current], context: holderRef.current.context },
+            fromPeer,
+          );
+      }
       return;
     }
     if (!seated) return;
@@ -588,6 +606,14 @@ export default function SecretHitler({
         void shact.send(d as never, t ? { target: t } : undefined),
     };
 
+    // Host heartbeat: rebroadcast full state so late/dropped joiners
+    // converge even if they missed the original broadcasts.
+    const beat = setInterval(() => {
+      const cur = shRef.current;
+      if (isHostRef.current && cur)
+        sendersRef.current?.shpub(cur as unknown as Record<string, unknown>);
+    }, 5000);
+
     if (isHost && !initedRef.current) {
       initedRef.current = true;
       initSH();
@@ -605,8 +631,12 @@ export default function SecretHitler({
       return () => {
         clearTimeout(t);
         clearInterval(retry);
+        clearInterval(beat);
       };
     }
+    return () => {
+      clearInterval(beat);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handle]);
 
@@ -783,7 +813,37 @@ export default function SecretHitler({
       return;
     }
     sendersRef.current?.shact(full as unknown as Record<string, unknown>);
+    // Ack-retry: re-send until the host's broadcast reflects the action
+    // (or the phase moves on, or 5 tries pass). Fire-and-forget sends are
+    // what made picks/votes silently vanish on flaky phone networks.
+    pendingRef.current = {
+      msg: full,
+      tries: 0,
+      phase: shRef.current?.phase ?? 'nominate',
+    };
   };
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      const p = pendingRef.current;
+      const cur = shRef.current;
+      if (!p || !cur || isHostRef.current) return;
+      const done =
+        cur.phase !== p.phase ||
+        p.tries >= 5 ||
+        (p.msg.kind === 'vote' && cur.votes[clientId] !== undefined) ||
+        (p.msg.kind === 'nominate' && cur.chancellorId != null) ||
+        (p.msg.kind === 'veto-propose' && cur.vetoOffered);
+      if (done) {
+        pendingRef.current = null;
+        return;
+      }
+      p.tries++;
+      sendersRef.current?.shact(p.msg as unknown as Record<string, unknown>);
+    }, 2000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handle]);
 
   // ---------- render ----------
   if (!sh) {
