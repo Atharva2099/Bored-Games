@@ -1397,7 +1397,7 @@ function PolicyCard({ policy, dim }: { policy: Policy; dim?: boolean }) {
   const Icon = lib ? Vote : Flame;
   return (
     <div className={`sh-card ${lib ? 'sh-card-lib' : 'sh-card-fas'}${dim ? ' opacity-60' : ''}`}>
-      <Icon size={30} className="mx-auto" strokeWidth={2.2} />
+      <Icon size={44} className="mx-auto" strokeWidth={2} />
       <div className="sh-card-label">{lib ? 'Liberal' : 'Fascist'}</div>
     </div>
   );
