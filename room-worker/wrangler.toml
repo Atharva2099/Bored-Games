@@ -1,0 +1,18 @@
+name = "bored-games-room"
+main = "room-worker.js"
+compatibility_date = "2026-09-01"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "RoomDO"
+
+# This MUST be new_sqlite_classes, not new_classes. Cloudflare's Durable
+# Objects come in two storage backends: the original key-value backend and
+# the newer SQLite backend. Only SQLite-backed Durable Objects are available
+# on the Workers FREE plan -- the key-value backend requires a paid
+# Workers Paid plan. Using new_classes here would deploy fine on a paid
+# account but fail (or require upgrading) on free tier, so new_sqlite_classes
+# is the only choice that keeps this on the free plan.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RoomDO"]

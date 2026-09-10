@@ -8,6 +8,7 @@ import type {
   SHRole,
   SHWinner,
 } from '../game/secret-hitler/logic';
+import { createWsRoom } from './ws-transport';
 
 export type { Player } from './presence';
 
@@ -169,12 +170,27 @@ export interface RoomHandle {
   leave: () => void;
 }
 
+// 'ws' talks to the Cloudflare Durable Object relay in room-worker/
+// (star topology, no WebRTC/TURN); 'p2p' is the original Trystero mesh,
+// kept as a fallback. Read at BUILD time by Vite.
+export const TRANSPORT: 'ws' | 'p2p' =
+  import.meta.env.VITE_TRANSPORT === 'p2p' ? 'p2p' : 'ws';
+
+// Base URL of the room-worker Cloudflare Worker, e.g.
+// https://bored-games-room.<subdomain>.workers.dev. Empty means the WS
+// transport has nowhere to connect, so createRoom falls back to Trystero
+// even when TRANSPORT === 'ws' (graceful degradation — see README).
+export const WS_ENDPOINT: string = import.meta.env.VITE_ROOM_ENDPOINT ?? '';
+
 export function createRoom(
   roomId: string,
   _isHost: boolean,
   onJoinError?: (e: { error: string }) => void,
   iceServers?: RTCIceServer[],
 ): RoomHandle {
+  if (TRANSPORT === 'ws' && WS_ENDPOINT) {
+    return createWsRoom(roomId, WS_ENDPOINT, onJoinError);
+  }
   // The room code IS the password: only devices holding the QR/link can
   // even complete a handshake. No server, no accounts, no keys to steal.
   // NOTE: do not set `passive: !isHost` here. It gives the star topology we

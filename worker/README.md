@@ -90,7 +90,7 @@ anyone can read it off the deployed site. What protects the quota:
 |---|---|
 | Origin allowlist (hard 403) | Casual `curl` and other sites' pages. **Spoofable** with `-H 'Origin: ...'` — a speed bump, not auth. |
 | 1-hour credential TTL | A scraped credential dies quickly instead of lasting a day. |
-| Per-IP rate limit (12/min) | A script hammering the endpoint. Per-colo and best-effort, not global. |
+| Per-IP rate limit (60/min) | A script hammering the endpoint. Per-colo and best-effort, not global. |
 | Cloudflare's 1TB/month cap | Bounds the worst case. TURN only carries traffic when no direct P2P path exists. |
 
 **Forks of the repo do not get your account.** `VITE_TURN_ENDPOINT` lives in

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Check, Copy, RefreshCw, X } from 'lucide-react';
 import { diagText, getDiag, probeIce, probeRelays } from '../net/diagnostics';
 import { RELAY_URLS } from '../net/transport';
-import { getCachedTurn } from '../net/turn';
+import { getCachedTurn, isTurnCacheStale, turnCacheAgeMs } from '../net/turn';
 
 type RelayResult = { url: string; ok: boolean; ms: number; detail: string };
 type IceResult = {
@@ -24,6 +24,7 @@ export function DiagnosticsOverlay({ onClose }: { onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const events = getDiag();
   const turnServers = getCachedTurn();
+  const turnAgeMs = turnCacheAgeMs();
 
   const runChecks = async () => {
     setRunning(true);
@@ -139,7 +140,14 @@ export function DiagnosticsOverlay({ onClose }: { onClose: () => void }) {
             )}
             {turnServers.length > 0 ? (
               <p className="text-xs text-emerald-300/90">
-                TURN: {turnServers.length} server(s) configured
+                TURN: {turnServers.length} server(s)
+                {turnAgeMs !== null
+                  ? ` (fetched ${Math.round(turnAgeMs / 60000)}m ago)`
+                  : ''}
+              </p>
+            ) : isTurnCacheStale() && turnAgeMs !== null ? (
+              <p className="text-xs text-amber-300/90">
+                TURN: cache stale — will refetch on join
               </p>
             ) : (
               <p className="text-xs text-amber-300/90">

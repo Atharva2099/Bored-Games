@@ -4,6 +4,7 @@ import {
   Check,
   Copy,
   Eye,
+  Gavel,
   Info,
   Moon,
   Radio,
@@ -23,8 +24,8 @@ import { DiagnosticsOverlay } from './ui/Diagnostics';
 import { logDiag, resetDiag } from './net/diagnostics';
 import { fetchTurnServers, getCachedTurn, primeTurn } from './net/turn';
 import { cancelSpeech, narrateNight, speakCue } from './ui/narrate';
-import { RoomFinePrint, WerewolfFinePrint } from './ui/About';
-import { HomeLogo, Landing, SHTeaser, type GamePick } from './ui/Landing';
+import { RoomFinePrint, SHFinePrint, WerewolfFinePrint } from './ui/About';
+import { HomeLogo, Landing, type GamePick } from './ui/Landing';
 import SecretHitler from './ui/SecretHitler';
 import {
   assignRoles,
@@ -74,6 +75,7 @@ const ROLE_META: Record<Role, { label: string; Icon: typeof Moon; blurb: string 
 
 const initialPublic = (
   players: { peerId: string; name: string }[],
+  game: 'werewolf' | 'secret-hitler' = 'werewolf',
 ): PublicState => ({
   phase: 'lobby',
   players: players.map((p) => ({ ...p, alive: true, online: true })),
@@ -81,6 +83,7 @@ const initialPublic = (
   log: ['Room created. Waiting for players…'],
   votes: {},
   winner: null,
+  game,
 });
 
 function joinUrl(roomCode: string) {
@@ -232,6 +235,8 @@ export default function App() {
   const peerToClient = useRef<Record<string, string>>({});
   const isHostRef = useRef(false);
   const lastPubAtRef = useRef<number | null>(null);
+  const iceStateRef = useRef<Record<string, string>>({});
+  const icePairReportedRef = useRef<Set<string>>(new Set());
 
   pubRef.current = pub;
   isHostRef.current = isHost;
@@ -255,6 +260,14 @@ export default function App() {
     setSession(sess);
     const iceServers =
       getCachedTurn().length > 0 ? getCachedTurn() : await fetchTurnServers();
+    logDiag(
+      'turn',
+      iceServers.length
+        ? `${iceServers.length} server(s), urls: ${iceServers
+            .flatMap((s) => (Array.isArray(s.urls) ? s.urls : [s.urls]))
+            .join(', ')}`
+        : 'NONE — no TURN',
+    );
     const h = createRoom(
       cleanCode,
       host,
@@ -489,14 +502,77 @@ export default function App() {
     // and (guests only) detect a host that's gone silent so we can surface
     // it instead of staring at a stale board.
     let lastPeerCount = -1;
+    iceStateRef.current = {};
+    icePairReportedRef.current = new Set();
+    const logIcePair = (peerId: string, pc: RTCPeerConnection) => {
+      if (icePairReportedRef.current.has(peerId)) return;
+      icePairReportedRef.current.add(peerId);
+      pc.getStats()
+        .then((stats) => {
+          let pair: RTCIceCandidatePairStats | null = null;
+          stats.forEach((s) => {
+            if (
+              s.type === 'candidate-pair' &&
+              s.state === 'succeeded' &&
+              s.nominated
+            ) {
+              pair = s as RTCIceCandidatePairStats;
+            }
+          });
+          if (!pair) return;
+          let localType = '?';
+          let remoteType = '?';
+          stats.forEach((s) => {
+            const candidate = s as RTCStats & { candidateType?: string };
+            if (s.id === (pair as RTCIceCandidatePairStats).localCandidateId)
+              localType = candidate.candidateType ?? '?';
+            if (s.id === (pair as RTCIceCandidatePairStats).remoteCandidateId)
+              remoteType = candidate.candidateType ?? '?';
+          });
+          logDiag('ice-pair', `${peerId.slice(0, 6)} ${localType}/${remoteType}`);
+        })
+        .catch(() => {
+          /* stats unavailable — never break the timer */
+        });
+    };
     const peerTimer = setInterval(() => {
       try {
-        const n = Object.keys(room.getPeers()).length;
+        const peers = room.getPeers();
+        const ids = Object.keys(peers);
+        const n = ids.length;
         if (n !== lastPeerCount) {
           lastPeerCount = n;
           logDiag('peers', String(n));
         }
         setPeerCount(n);
+
+        // real peer connection ICE state changes + the decisive candidate
+        // types once connected (was the game actually relayed via TURN?)
+        // Only meaningful under the WebRTC (Trystero) transport — under the
+        // WebSocket relay, `peers[id]` is an inert placeholder, not an
+        // RTCPeerConnection, so skip anything that assumes it is one.
+        for (const peerId of ids) {
+          const pc = peers[peerId];
+          if (typeof pc?.getStats !== 'function') continue;
+          const state = pc.iceConnectionState;
+          if (iceStateRef.current[peerId] !== state) {
+            iceStateRef.current[peerId] = state;
+            logDiag('ice', `${peerId.slice(0, 6)} ${state}`);
+          }
+          if (state === 'connected' || state === 'completed') {
+            try {
+              logIcePair(peerId, pc);
+            } catch {
+              /* never break the timer */
+            }
+          }
+        }
+        for (const peerId of Object.keys(iceStateRef.current)) {
+          if (!ids.includes(peerId)) {
+            delete iceStateRef.current[peerId];
+            icePairReportedRef.current.delete(peerId);
+          }
+        }
       } catch {
         /* trackers unreachable */
       }
@@ -597,7 +673,10 @@ export default function App() {
           throw new Error('no save');
         }
       } catch {
-        seed = initialPublic([{ peerId: selfId, name: myName }]);
+        seed = initialPublic(
+          [{ peerId: selfId, name: myName }],
+          selected === 'sh' ? 'secret-hitler' : 'werewolf',
+        );
       }
       clientToPeer.current[clientId] = selfId;
       peerToClient.current[selfId] = clientId;
@@ -950,14 +1029,11 @@ export default function App() {
     );
   }
 
-  if (!inRoom && selected === 'sh') {
-    return <SHTeaser onBack={() => setSelected(null)} />;
-  }
-
   if (!inRoom) {
+    const isSH = selected === 'sh';
     return (
       <>
-        <div data-game="werewolf" className="min-h-screen flex items-center justify-center p-4">
+        <div data-game={isSH ? 'secret-hitler' : 'werewolf'} className="min-h-screen flex items-center justify-center p-4">
         <div className="w-full max-w-sm bg-white/5 cut p-6 space-y-4 border border-white/10">
           <div className="flex items-center justify-between">
             <HomeLogo onHome={() => setSelected(null)} />
@@ -965,11 +1041,22 @@ export default function App() {
               All games
             </button>
           </div>
-          <h1 className="font-display text-4xl flex items-center gap-2"><Moon size={30} /> Werewolf</h1>
-          <p className="text-sm text-white/70">
-            Werewolf over the internet with a room code. No server, no
-            sign-up. One Host, everyone joins.
-          </p>
+          {isSH ? (
+            <h1 className="font-display text-4xl flex items-center gap-2"><Gavel size={30} /> Secret Hitler</h1>
+          ) : (
+            <h1 className="font-display text-4xl flex items-center gap-2"><Moon size={30} /> Werewolf</h1>
+          )}
+          {isSH ? (
+            <p className="text-sm text-white/70">
+              Secret Hitler over the internet with a room code. No server, no
+              sign-up. One Host, everyone joins.
+            </p>
+          ) : (
+            <p className="text-sm text-white/70">
+              Werewolf over the internet with a room code. No server, no
+              sign-up. One Host, everyone joins.
+            </p>
+          )}
           <label className="block text-xs uppercase text-white/60">Your name</label>
           <input
             value={name}
@@ -1014,7 +1101,7 @@ export default function App() {
               Diagnostics
             </button>
           </p>
-          <WerewolfFinePrint />
+          {isSH ? <SHFinePrint /> : <WerewolfFinePrint />}
         </div>
       </div>
       {showHelp && <HowToOverlay onClose={() => setShowHelp(false)} />}

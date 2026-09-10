@@ -54,7 +54,11 @@ function normaliseIceServers(upstreamBody) {
 // A legitimate player mints credentials once per game; this only stops a
 // script hammering the endpoint to burn the monthly quota. It is per-colo,
 // not global, so treat it as a dampener rather than a hard guarantee.
-const RATE_LIMIT_PER_MINUTE = 12;
+// Raised from 12 to 60: several devices behind one home/venue NAT share a
+// public IP, and every page load calls primeTurn(), so a family or group
+// testing on one wifi could trip the old, tighter limit and silently get
+// `[]` back.
+const RATE_LIMIT_PER_MINUTE = 60;
 
 async function overRateLimit(request) {
   const ip = request.headers.get('CF-Connecting-IP');
