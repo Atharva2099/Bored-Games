@@ -982,6 +982,7 @@ export default function SecretHitler({
   return (
     <div data-game="secret-hitler" className="space-y-3 lg:space-y-4">
       <InvitePanel roomCode={roomCode} game="sh" />
+      <GameStatus sh={sh} selfId={selfId} nameOf={nameOf} />
       {/* tracks */}
       <div className="panel cut space-y-2">
         <div className="flex items-center justify-between">
@@ -992,7 +993,7 @@ export default function SecretHitler({
           {Array.from({ length: 5 }).map((_, i) => (
             <span
               key={i}
-              className="h-5 flex-1 rounded-sm border"
+              className="h-7 flex-1 rounded-sm border"
               style={i < sh.libTrack
                 ? { background: 'linear-gradient(180deg,#3d7bff,#1e40af)', borderColor: '#7aa5ff' }
                 : { background: 'rgba(122,165,255,0.08)', borderColor: 'rgba(122,165,255,0.35)' }}
@@ -1006,7 +1007,7 @@ export default function SecretHitler({
             return (
               <span
                 key={i}
-                className="h-8 flex-1 rounded-sm border flex flex-col items-center justify-center"
+                className="h-11 flex-1 rounded-sm border flex flex-col items-center justify-center"
                 style={filled
                   ? { background: 'linear-gradient(180deg,#f02a44,#a31226)', borderColor: '#ff6b7a' }
                   : { background: 'rgba(255,107,122,0.07)', borderColor: 'rgba(255,107,122,0.35)' }}
@@ -1125,7 +1126,7 @@ export default function SecretHitler({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => act({ kind: 'vote', ja: true })}
-                  className="rounded py-4 font-display text-2xl tracking-widest border-2"
+                  className="rounded py-5 font-display text-3xl tracking-widest border-2"
                   style={myVote === true
                     ? { background: 'linear-gradient(180deg,#3d7bff,#1e40af)', borderColor: '#7aa5ff', color: '#fff' }
                     : { background: 'rgba(47,111,237,0.10)', borderColor: 'rgba(122,165,255,0.5)', color: '#7aa5ff' }}
@@ -1134,7 +1135,7 @@ export default function SecretHitler({
                 </button>
                 <button
                   onClick={() => act({ kind: 'vote', ja: false })}
-                  className="rounded py-4 font-display text-2xl tracking-widest border-2"
+                  className="rounded py-5 font-display text-3xl tracking-widest border-2"
                   style={myVote === false
                     ? { background: 'linear-gradient(180deg,#f02a44,#a31226)', borderColor: '#ff6b7a', color: '#fff' }
                     : { background: 'rgba(217,32,56,0.10)', borderColor: 'rgba(255,107,122,0.5)', color: '#ff6b7a' }}
@@ -1282,6 +1283,78 @@ export default function SecretHitler({
           ))}
         </ul>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Big status headline, always first under the invite bar:
+ * game state → board → voting/options, top to bottom.
+ */
+function GameStatus({
+  sh,
+  selfId,
+  nameOf,
+}: {
+  sh: SHPublic;
+  selfId: string;
+  nameOf: (id: string | null) => string;
+}) {
+  const presName = nameOf(sh.presidentId);
+  const chancName = nameOf(sh.chancellorId);
+  const iAmPres = sh.presidentId === selfId;
+  const iAmChanc = sh.chancellorId === selfId;
+  let kicker = '';
+  let headline = '';
+  let sub = '';
+  if (sh.phase === 'nominate') {
+    kicker = 'Election';
+    headline = iAmPres ? 'YOU — CHOOSE THE CHANCELLOR' : `${presName} — CHOOSES`.toUpperCase();
+    sub = 'President nominates one eligible player.';
+  } else if (sh.phase === 'vote') {
+    kicker = 'Vote now';
+    headline = `ELECT ${presName} + ${chancName}?`.toUpperCase();
+    sub = 'Strict majority of the living passes.';
+  } else if (sh.phase === 'legis-pres') {
+    kicker = 'Legislative session';
+    headline = iAmPres ? 'YOU — DISCARD ONE' : `${presName} IS DISCARDING…`.toUpperCase();
+    sub = 'President discards 1 of 3, passes 2.';
+  } else if (sh.phase === 'legis-chanc') {
+    kicker = sh.vetoOffered ? 'Veto on the table' : 'Legislative session';
+    headline = iAmChanc
+      ? 'YOU — ENACT ONE'
+      : sh.vetoOffered
+        ? 'PRESIDENT DECIDES THE VETO'
+        : `${chancName} IS ENACTING…`.toUpperCase();
+    sub = sh.vetoOffered ? 'Both must agree to discard the hand.' : 'Chancellor enacts 1 of 2.';
+  } else if (sh.phase === 'power' && sh.pendingPower) {
+    kicker = 'Presidential power';
+    const map = {
+      investigate: 'INVESTIGATE LOYALTY',
+      special: 'SPECIAL ELECTION',
+      peek: 'POLICY PEEK',
+      execution: 'EXECUTION',
+    } as const;
+    headline = map[sh.pendingPower];
+    sub = iAmPres ? 'You wield it — choose below.' : 'The President decides…';
+  } else if (sh.phase === 'ended') {
+    kicker = 'Game over';
+    headline = `${sh.winner ?? ''} WIN!`.toUpperCase();
+    sub = '';
+  }
+  return (
+    <div key={sh.phase + String(sh.presidentId) + String(sh.chancellorId)} className="phase-enter">
+      <div className="text-xs font-bold uppercase tracking-[0.25em]" style={{ color: '#fe8254' }}>
+        {kicker}
+      </div>
+      <h2
+        className="font-display uppercase leading-[1.02]"
+        style={{ fontSize: 'clamp(1.9rem, 8vw, 3rem)', color: '#fff' }}
+      >
+        {headline}
+      </h2>
+      {sub ? <p className="text-sm text-white/60 mt-1">{sub}</p> : null}
+      <div className="daybreak mt-2" />
     </div>
   );
 }
