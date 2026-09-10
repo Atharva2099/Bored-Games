@@ -109,6 +109,16 @@ export default function SecretHitler({
     context: 'pres-draw' | 'chanc-hand' | 'peek';
   } | null>(null);
   const [myInfo, setMyInfo] = useState<string | null>(null);
+  // Role card starts collapsed (board gets the space); it auto-opens once
+  // when a fresh role lands, then stays as the player left it.
+  const [roleOpen, setRoleOpen] = useState(false);
+  const seenRoleRef = useRef<SHRole | null>(null);
+  useEffect(() => {
+    if (myRole && seenRoleRef.current !== myRole) {
+      seenRoleRef.current = myRole;
+      setRoleOpen(true);
+    }
+  }, [myRole]);
 
   // ---- host truth ----
   const rolesRef = useRef<Record<string, SHRole>>({});
@@ -1063,7 +1073,8 @@ export default function SecretHitler({
         )}
       </div>
 
-      {/* role card */}
+      {/* role card — collapsed to one row by default to leave room for
+          the board; auto-opens once when a fresh role is dealt */}
       <div
         className="panel cut"
         style={myRole ? {
@@ -1075,23 +1086,25 @@ export default function SecretHitler({
               : 'linear-gradient(150deg, rgba(217,32,56,0.20), rgba(11,14,26,0.6))',
         } : undefined}
       >
-        <div className="text-xs uppercase text-white/50">Your secret role</div>
-        <div className="font-display text-3xl flex items-center gap-2">
-          {myRole ? (
-            <>
-              {myRole === 'hitler' && <Crown size={26} className="sh-gold" />}
-              <span style={{ color: myRole === 'liberal' ? '#7aa5ff' : '#ff6b7a' }}>
-                {ROLE_LABEL[myRole]}
-              </span>
-            </>
-          ) : (
-            '…waiting…'
-          )}
-        </div>
-        {myRole && (
+        <button onClick={() => setRoleOpen((v) => !v)} className="w-full text-left">
+          <div className="text-xs uppercase text-white/50">Your secret role — tap to {roleOpen ? 'hide' : 'reveal'}</div>
+          <div className="font-display text-2xl flex items-center gap-2">
+            {myRole ? (
+              <>
+                {myRole === 'hitler' && <Crown size={22} className="sh-gold" />}
+                <span style={{ color: myRole === 'liberal' ? '#7aa5ff' : '#ff6b7a' }}>
+                  {ROLE_LABEL[myRole]}
+                </span>
+              </>
+            ) : (
+              '…waiting…'
+            )}
+          </div>
+        </button>
+        {roleOpen && myRole && (
           <p className="text-xs text-white/60 mt-1">{ROLE_BLURB[myRole]}</p>
         )}
-        {knownNames.length > 0 && (
+        {roleOpen && knownNames.length > 0 && (
           <p className="text-xs text-red-300 mt-1">
             <Eye size={12} className="inline" /> You know: {knownNames.join(', ')}
           </p>
