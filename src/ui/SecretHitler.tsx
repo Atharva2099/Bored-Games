@@ -23,6 +23,7 @@ import {
 } from '../net/transport';
 import { speakCue } from './narrate';
 import { InvitePanel } from './Invite';
+import { PreDeal } from './PreDeal';
 import { RosterList } from './Roster';
 
 const ROLE_BLURB: Record<SHRole, string> = {
@@ -103,7 +104,6 @@ export default function SecretHitler({
     context: 'pres-draw' | 'chanc-hand' | 'peek';
   } | null>(null);
   const [myInfo, setMyInfo] = useState<string | null>(null);
-  const [shError, setShError] = useState<string | null>(null);
 
   // ---- host truth ----
   const rolesRef = useRef<Record<string, SHRole>>({});
@@ -681,8 +681,21 @@ export default function SecretHitler({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cuedPhase]);
 
+  /** Live lobby roster (prop updates on every App render). Read at seat
+   * time — never a mount-time snapshot — so late joiners get seated. */
+  const liveRoster = useRef(initialRoster);
+  liveRoster.current = initialRoster;
+
   function initSH() {
-    // restore after host refresh, else deal fresh
+    if (restoreSaved()) return;
+    // No save: only auto-deal if the live room already meets the minimum.
+    // Otherwise idle on the pre-deal screen until the host seats manually.
+    const n = liveRoster.current.length;
+    if (n >= 5 && n <= 10) dealTable(liveRoster.current);
+  }
+
+  /** Host refresh recovery. Returns true when a save was restored. */
+  function restoreSaved(): boolean {
     try {
       const saved = JSON.parse(
         localStorage.getItem(`bg-shhost-${roomCode}`) ?? 'null',
@@ -726,19 +739,18 @@ export default function SecretHitler({
           800,
         );
         void t;
-        return;
+        return true;
       }
+      return false;
     } catch {
-      /* fresh deal below */
+      return false;
     }
+  }
 
-    const ids = initialRoster.map((p) => p.peerId);
-    if (ids.length < 5 || ids.length > 10) {
-      setShError(
-        `Secret Hitler needs 5–10 players at the table — this room has ${ids.length}. Head back and invite more.`,
-      );
-      return;
-    }
+  /** Deal a fresh table from the given (live) roster. Host only. */
+  function dealTable(roster: Player[]) {
+    const ids = roster.map((p) => p.peerId);
+    if (ids.length < 5 || ids.length > 10) return;
     const roles = assignSHRoles(ids);
     rolesRef.current = roles;
     deckRef.current = buildPolicyDeck();
@@ -751,7 +763,7 @@ export default function SecretHitler({
     specialActiveRef.current = false;
     const k = shKnowledge(roles);
     const names = (id: string) =>
-      initialRoster.find((p) => p.peerId === id)?.name ?? '?';
+      roster.find((p) => p.peerId === id)?.name ?? '?';
     ids.forEach((id) => {
       const known = k.knownFascistsFor(id).map(names);
       if (id === selfId) {
@@ -778,7 +790,7 @@ export default function SecretHitler({
     });
     const first: SHPublic = {
       phase: 'nominate',
-      players: initialRoster.map((p) => ({ ...p, alive: true, online: true })),
+      players: roster.map((p) => ({ ...p, alive: true, online: true })),
       libTrack: 0,
       fasTrack: 0,
       tracker: 0,
@@ -849,26 +861,17 @@ export default function SecretHitler({
   // ---------- render ----------
   if (!sh) {
     return (
-      <div data-game="secret-hitler" className="space-y-3">
-        <InvitePanel roomCode={roomCode} game="sh" />
-        <div className="panel cut space-y-2">
-          <div className="font-display text-3xl uppercase">Secret Hitler</div>
-          {shError ? (
-            <>
-              <p className="text-sm text-red-300">{shError}</p>
-              {isHost && (
-                <button onClick={onExit} className="btn-accent">
-                  Back to lobby
-                </button>
-              )}
-            </>
-          ) : (
-            <p className="text-sm text-white/60">
-              {isHost ? 'Seating the table…' : 'Joining the table…'}
-            </p>
-          )}
-        </div>
-      </div>
+      <PreDeal
+        game="sh"
+        title="Secret Hitler"
+        roomCode={roomCode}
+        roster={liveRoster.current}
+        min={5}
+        max={10}
+        isHost={isHost}
+        onSeat={() => dealTable(liveRoster.current)}
+        onExit={onExit}
+      />
     );
   }
 

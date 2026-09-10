@@ -23,6 +23,7 @@ import {
 } from '../net/transport';
 import { narrateONUNight, speakCue } from './narrate';
 import { InvitePanel } from './Invite';
+import { PreDeal } from './PreDeal';
 import { RosterList } from './Roster';
 
 const BLURB: Record<ONURole, string> = {
@@ -120,7 +121,6 @@ export default function OneNight({
   const [loneWolf, setLoneWolf] = useState(false);
   const [seen, setSeen] = useState<{ cards: ONURole[]; label: string } | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
-  const [onuError, setOnuError] = useState<string | null>(null);
 
   // ---- host truth ----
   const cardsRef = useRef<Cards>({});
@@ -512,7 +512,21 @@ export default function OneNight({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cued]);
 
+  /** Live lobby roster (prop updates on every App render). Read at seat
+   * time — never a mount-time snapshot — so late joiners get seated. */
+  const liveRoster = useRef(initialRoster);
+  liveRoster.current = initialRoster;
+
   function initGame() {
+    if (restoreSaved()) return;
+    // No save: only auto-deal if the live room already meets the minimum.
+    // Otherwise idle on the pre-deal screen until the host seats manually.
+    const n = liveRoster.current.length;
+    if (n >= 3 && n <= 10) dealTable(liveRoster.current);
+  }
+
+  /** Host refresh recovery. Returns true when a save was restored. */
+  function restoreSaved(): boolean {
     try {
       const saved = JSON.parse(localStorage.getItem(`bg-onuhost-${roomCode}`) ?? 'null');
       if (saved && saved.onu && saved.cards && saved.hostPeer) {
@@ -543,19 +557,18 @@ export default function OneNight({
           () => sendersRef.current?.pub(next as unknown as Record<string, unknown>),
           800,
         );
-        return;
+        return true;
       }
+      return false;
     } catch {
-      /* fresh deal below */
+      return false;
     }
+  }
 
-    const ids = initialRoster.map((p) => p.peerId);
-    if (ids.length < 3 || ids.length > 10) {
-      setOnuError(
-        `One Night needs 3–10 players at the table — this room has ${ids.length}. Head back and invite more.`,
-      );
-      return;
-    }
+  /** Deal a fresh table from the given (live) roster. Host only. */
+  function dealTable(roster: Player[]) {
+    const ids = roster.map((p) => p.peerId);
+    if (ids.length < 3 || ids.length > 10) return;
     const pool = recommendedPool(ids.length);
     const cards = deal(pool, ids);
     cardsRef.current = cards;
@@ -566,7 +579,7 @@ export default function OneNight({
     ids.forEach((id) => dealRole(id));
     const first: ONUPublic = {
       phase: 'role',
-      players: initialRoster.map((p) => ({ ...p, alive: true, online: true })),
+      players: roster.map((p) => ({ ...p, alive: true, online: true })),
       pool,
       votes: {},
       ready: [],
@@ -648,26 +661,17 @@ export default function OneNight({
   // ---------- render ----------
   if (!onu) {
     return (
-      <div data-game="one-night" className="space-y-3">
-        <InvitePanel roomCode={roomCode} game="one-night" />
-        <div className="panel cut space-y-2">
-          <div className="font-display text-3xl uppercase">One Night</div>
-          {onuError ? (
-            <>
-              <p className="text-sm text-red-300">{onuError}</p>
-              {isHost && (
-                <button onClick={onExit} className="btn-accent">
-                  Back to lobby
-                </button>
-              )}
-            </>
-          ) : (
-            <p className="text-sm text-white/60">
-              {isHost ? 'Dealing the table…' : 'Joining the table…'}
-            </p>
-          )}
-        </div>
-      </div>
+      <PreDeal
+        game="one-night"
+        title="One Night"
+        roomCode={roomCode}
+        roster={liveRoster.current}
+        min={3}
+        max={10}
+        isHost={isHost}
+        onSeat={() => dealTable(liveRoster.current)}
+        onExit={onExit}
+      />
     );
   }
 

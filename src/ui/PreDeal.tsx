@@ -1,0 +1,70 @@
+import { AvatarGrid } from './Roster';
+import { InvitePanel, type InviteGame } from './Invite';
+
+/**
+ * Shared pre-deal waiting room for both games (lobbies are similar —
+ * only the final tables differ). Shows the LIVE roster (not a mount-time
+ * snapshot) so late joiners are visible, and lets the host seat the table
+ * exactly when the room looks right instead of the mount moment deciding.
+ */
+export function PreDeal({
+  game,
+  title,
+  roomCode,
+  roster,
+  min,
+  max,
+  isHost,
+  onSeat,
+  onExit,
+}: {
+  game: InviteGame;
+  title: string;
+  roomCode: string;
+  roster: import('../net/presence').Player[];
+  min: number;
+  max: number;
+  isHost: boolean;
+  onSeat: () => void;
+  onExit: () => void;
+}) {
+  const n = roster.length;
+  const ready = n >= min && n <= max;
+  return (
+    <div
+      data-game={game === 'sh' ? 'secret-hitler' : 'one-night'}
+      className="space-y-3"
+    >
+      <InvitePanel roomCode={roomCode} game={game} />
+      <div className="panel cut space-y-3">
+        <div className="font-display text-3xl uppercase">{title}</div>
+        <AvatarGrid players={roster} minNeeded={min} />
+        {isHost ? (
+          <>
+            <button
+              onClick={onSeat}
+              disabled={!ready}
+              className="btn-accent disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {ready
+                ? `Seat the table (${n})`
+                : n > max
+                  ? `Too many (${n}/${max})`
+                  : `Need ${min - n} more`}
+            </button>
+            <button
+              onClick={onExit}
+              className="w-full text-xs text-white/50 underline"
+            >
+              Back to lobby
+            </button>
+          </>
+        ) : (
+          <p className="text-sm text-white/60">
+            Waiting for the host to seat the table…
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
