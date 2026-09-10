@@ -1013,10 +1013,10 @@ export default function SecretHitler({
                   ? { background: 'linear-gradient(180deg,#f02a44,#a31226)', borderColor: '#ff6b7a' }
                   : { background: 'rgba(255,107,122,0.07)', borderColor: 'rgba(255,107,122,0.35)' }}
               >
-                <span className="text-white/35" style={{ fontSize: 10, fontWeight: 700 }}>{i + 1}</span>
+                <span className="text-white/35" style={{ fontSize: 12, fontWeight: 700 }}>{i + 1}</span>
                 <PowerGlyph power={power} />
                 {i === 4 && (
-                  <span className="sh-gold" style={{ fontSize: 11, fontWeight: 800 }}>VETO</span>
+                  <span className="sh-gold" style={{ fontSize: 14, fontWeight: 800, letterSpacing: '0.08em' }}>VETO</span>
                 )}
               </span>
             );
@@ -1393,7 +1393,7 @@ function PolicyCard({ policy, dim }: { policy: Policy; dim?: boolean }) {
 function PowerGlyph({ power }: { power: Power | null }) {
   if (!power) return null;
   const Icon = power === 'investigate' ? Search : power === 'special' ? Repeat : power === 'peek' ? Eye : Skull;
-  return <Icon size={20} className="sh-gold" />;
+  return <Icon size={32} className="sh-gold" strokeWidth={1.8} />;
 }
 
 function PowerPanel(props: {
