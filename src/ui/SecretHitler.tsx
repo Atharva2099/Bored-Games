@@ -734,9 +734,22 @@ export default function SecretHitler({
         const players = (saved.sh.players as Player[]).map((p) =>
           p.peerId === oldPeer ? { ...p, peerId: selfId, online: true } : p,
         );
+        // remap every peer-keyed pointer. Removing the host's seat id from
+        // circulation (each refresh mints a new peer id) means stale
+        // pointers can be generations old, so ANY pointer that names a
+        // peer no longer in the roster resolves to the host seat — that
+        // also repairs saves poisoned by an earlier unremapped reboot
+        // (found by browser verification: board showed "President ?").
+        const valid = new Set(players.map((p) => p.peerId));
+        const remap = (id: string | null): string | null =>
+          id !== null && valid.has(id) ? id : selfId;
         const next: SHPublic = {
           ...(saved.sh as SHPublic),
           players,
+          presidentId: remap((saved.sh as SHPublic).presidentId),
+          chancellorId: remap((saved.sh as SHPublic).chancellorId),
+          lastPresidentId: remap((saved.sh as SHPublic).lastPresidentId),
+          lastChancellorId: remap((saved.sh as SHPublic).lastChancellorId),
           drawCount: deckRef.current.length,
           discCount: discardsRef.current.length,
           log: [...(saved.sh.log as string[]), 'Host rebooted.'].slice(-50),
