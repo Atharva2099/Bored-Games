@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Crown, Eye, Gavel, Repeat, ScrollText, Search, Skull, Users, Vote } from 'lucide-react';
+import { Eye, Gavel, Repeat, ScrollText, Search, Skull, Users, Vote } from 'lucide-react';
 import {
   assignSHRoles,
   buildPolicyDeck,
@@ -28,6 +28,7 @@ import { speakCue } from './narrate';
 import { InvitePanel } from './Invite';
 import { PreDeal } from './PreDeal';
 import { RosterList } from './Roster';
+import { BallotStamp, Modal, ModalConfirm, PickCard } from './Modal';
 
 const ROLE_BLURB: Record<SHRole, string> = {
   liberal: 'Pass liberal policies. Find your allies — talk is your weapon.',
@@ -40,6 +41,21 @@ const ROLE_LABEL: Record<SHRole, string> = {
   liberal: 'Liberal',
   fascist: 'Fascist',
   hitler: 'HITLER',
+};
+
+const ROLE_WIN: Record<SHRole, { win: string; lose: string }> = {
+  liberal: {
+    win: 'You win if the board fills with liberal policies, or if Hitler is executed.',
+    lose: 'You lose if the board fills with fascist policies, or if Hitler is elected Chancellor after 3 fascist policies.',
+  },
+  fascist: {
+    win: 'You win if the board fills with fascist policies, or if Hitler is elected Chancellor after 3 fascist policies.',
+    lose: 'You lose if the board fills with liberal policies, or if Hitler is executed.',
+  },
+  hitler: {
+    win: 'You win if the board fills with fascist policies, or if you are elected Chancellor after 3 fascist policies.',
+    lose: 'You lose if the board fills with liberal policies, or if you are executed. Lie low — the fascists know you.',
+  },
 };
 
 function getClient(): string {
@@ -114,16 +130,23 @@ export default function SecretHitler({
     context: 'pres-draw' | 'chanc-hand' | 'peek';
   } | null>(null);
   const [myInfo, setMyInfo] = useState<string | null>(null);
-  // Role card starts collapsed (board gets the space); it auto-opens once
-  // when a fresh role lands, then stays as the player left it.
-  const [roleOpen, setRoleOpen] = useState(false);
+  // Role reveal is a popup, not a panel: it auto-opens once when a fresh
+  // role lands, then stays dismissed until the chip reopens it.
+  const [roleModal, setRoleModal] = useState(false);
   const seenRoleRef = useRef<SHRole | null>(null);
   useEffect(() => {
     if (myRole && seenRoleRef.current !== myRole) {
       seenRoleRef.current = myRole;
-      setRoleOpen(true);
+      setRoleModal(true);
     }
   }, [myRole]);
+  // decision popups (select-then-confirm, board stays visible behind)
+  const [nominModal, setNominModal] = useState(false);
+  const [nominPick, setNominPick] = useState<string | null>(null);
+  const [ballotModal, setBallotModal] = useState(false);
+  const [ballotPick, setBallotPick] = useState<boolean | null>(null);
+  const [legisModal, setLegisModal] = useState(false);
+  const [legisPick, setLegisPick] = useState<number | null>(null);
 
   // ---- host truth ----
   const rolesRef = useRef<Record<string, SHRole>>({});
@@ -165,6 +188,13 @@ export default function SecretHitler({
     setKnownNames([]);
     setMyCards(null);
     setMyInfo(null);
+    setRoleModal(false);
+    setNominModal(false);
+    setNominPick(null);
+    setBallotModal(false);
+    setBallotPick(null);
+    setLegisModal(false);
+    setLegisPick(null);
     deckRef.current = [];
     discardsRef.current = [];
     drawnRef.current = [];
@@ -1059,29 +1089,47 @@ export default function SecretHitler({
                   President {nameOf(sh.presidentId)} nominates a Chancellor
                 </div>
                 {iAmPres ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    {aliveIds
-                      .filter((id) => id !== selfId)
-                      .map((id) => {
-                        const ok = eligible.includes(id);
-                        return (
-                          <button
-                            key={id}
-                            disabled={!ok}
-                            onClick={() => act({ kind: 'nominate', targetId: id })}
-                            className={`rounded px-2 py-1.5 text-sm border disabled:opacity-40 ${
-                              ok ? 'bg-black/30 border-white/10' : 'bg-black/30 border-white/10 line-through'
-                            }`}
-                          >
-                            {nameOf(id)}
-                          </button>
-                        );
-                      })}
-                  </div>
+                  <button onClick={() => { setNominPick(null); setNominModal(true); }} className="btn-accent">
+                    Choose chancellor
+                  </button>
                 ) : (
                   <p className="text-sm text-white/60">Waiting on the President…</p>
                 )}
               </div>
+            )}
+            {nominModal && sh.phase === 'nominate' && iAmPres && (
+              <Modal title="Nomination" onClose={() => setNominModal(false)} wide>
+                <p className="mb-3 text-sm text-white/70">
+                  Nominate a player to become the next Chancellor.
+                </p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {aliveIds
+                    .filter((id) => id !== selfId)
+                    .map((id) => {
+                      const ok = eligible.includes(id);
+                      return (
+                        <PickCard
+                          key={id}
+                          name={nameOf(id)}
+                          sub={ok ? undefined : 'ineligible'}
+                          disabled={!ok}
+                          selected={nominPick === id}
+                          onPick={() => setNominPick(id)}
+                        />
+                      );
+                    })}
+                </div>
+                <ModalConfirm
+                  disabled={!nominPick}
+                  onConfirm={() => {
+                    if (nominPick) act({ kind: 'nominate', targetId: nominPick });
+                    setNominPick(null);
+                    setNominModal(false);
+                  }}
+                >
+                  Confirm
+                </ModalConfirm>
+              </Modal>
             )}
 
             {sh.phase === 'vote' && (
@@ -1093,26 +1141,12 @@ export default function SecretHitler({
                   {votedCount}/{aliveIds.length} voted · strict majority of the living passes
                 </div>
                 {alive ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => act({ kind: 'vote', ja: true })}
-                      className="rounded py-5 font-display text-3xl tracking-widest border-2"
-                      style={myVote === true
-                        ? { background: 'linear-gradient(180deg,#2AA9C4,#0B6E83)', borderColor: '#0E7E96', color: '#fff' }
-                        : { background: 'rgba(15,149,176,0.12)', borderColor: 'rgba(15,149,176,0.55)', color: '#0E7E96' }}
-                    >
-                      JA!
-                    </button>
-                    <button
-                      onClick={() => act({ kind: 'vote', ja: false })}
-                      className="rounded py-5 font-display text-3xl tracking-widest border-2"
-                      style={myVote === false
-                        ? { background: 'linear-gradient(180deg,#F26838,#B8451A)', borderColor: '#C74E1D', color: '#fff' }
-                        : { background: 'rgba(242,104,56,0.12)', borderColor: 'rgba(242,104,56,0.55)', color: '#C74E1D' }}
-                    >
-                      NEIN!
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => { setBallotPick(myVote ?? null); setBallotModal(true); }}
+                    className="btn-accent"
+                  >
+                    {myVote === undefined ? 'Cast your vote' : `Voted ${myVote ? 'JA!' : 'NEIN!'} — change?`}
+                  </button>
                 ) : (
                   <p className="text-sm text-white/60">Executed players don&apos;t vote.</p>
                 )}
@@ -1126,21 +1160,41 @@ export default function SecretHitler({
                 )}
               </div>
             )}
+            {ballotModal && sh.phase === 'vote' && alive && (
+              <Modal title="Voting" onClose={() => setBallotModal(false)}>
+                <p className="mb-3 text-sm text-white/70">
+                  {nameOf(sh.presidentId)} has nominated {nameOf(sh.chancellorId)} as
+                  Chancellor. A strict majority of the living passes.
+                </p>
+                <div className="mb-3 flex items-center gap-3">
+                  <span className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-[#f6f4e7] text-2xl font-black text-[#2b2118]">
+                    {(nameOf(sh.chancellorId).trim()[0] ?? '?').toUpperCase()}
+                  </span>
+                  <span className="font-display text-2xl uppercase">{nameOf(sh.chancellorId)}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <BallotStamp ja selected={ballotPick === true} onPick={() => setBallotPick(true)} />
+                  <BallotStamp ja={false} selected={ballotPick === false} onPick={() => setBallotPick(false)} />
+                </div>
+                <ModalConfirm
+                  disabled={ballotPick === null}
+                  onConfirm={() => {
+                    if (ballotPick !== null) act({ kind: 'vote', ja: ballotPick });
+                    setBallotModal(false);
+                  }}
+                >
+                  Confirm
+                </ModalConfirm>
+              </Modal>
+            )}
 
             {sh.phase === 'legis-pres' && (
               <div className="panel cut space-y-2">
                 <div className="font-semibold">President discards one, passes two</div>
                 {iAmPres && myCards?.context === 'pres-draw' ? (
-                  <>
-                    <div className="grid grid-cols-3 gap-2">
-                      {myCards.cards.map((c, i) => (
-                        <button key={i} onClick={() => { act({ kind: 'pres-discard', index: i }); setMyCards(null); }} className="rounded">
-                          <PolicyCard policy={c} />
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-xs text-white/50">Tap the policy to DISCARD.</p>
-                  </>
+                  <button onClick={() => { setLegisPick(null); setLegisModal(true); }} className="btn-accent">
+                    Choose policies
+                  </button>
                 ) : (
                   <p className="text-sm text-white/60">
                     President {nameOf(sh.presidentId)} is choosing…
@@ -1148,29 +1202,43 @@ export default function SecretHitler({
                 )}
               </div>
             )}
+            {legisModal && sh.phase === 'legis-pres' && iAmPres && myCards?.context === 'pres-draw' && (
+              <Modal title="Discard one" onClose={() => setLegisModal(false)} wide>
+                <p className="mb-3 text-sm text-white/70">
+                  Tap a policy to discard it — the other two go to the Chancellor.
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {myCards.cards.map((c, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setLegisPick(i)}
+                      className={`rounded transition-all active:scale-95 ${legisPick === i ? 'ring-4 ring-[#f26838]' : 'ring-1 ring-black/10 hover:ring-2 hover:ring-black/25'}`}
+                    >
+                      <PolicyCard policy={c} />
+                    </button>
+                  ))}
+                </div>
+                <ModalConfirm
+                  disabled={legisPick === null}
+                  onConfirm={() => {
+                    if (legisPick !== null) act({ kind: 'pres-discard', index: legisPick });
+                    setLegisPick(null);
+                    setLegisModal(false);
+                    setMyCards(null);
+                  }}
+                >
+                  Discard
+                </ModalConfirm>
+              </Modal>
+            )}
 
             {sh.phase === 'legis-chanc' && (
               <div className="panel cut space-y-2">
                 <div className="font-semibold">Chancellor enacts one</div>
                 {iAmChanc && myCards?.context === 'chanc-hand' ? (
-                  <>
-                    <div className="grid grid-cols-2 gap-2">
-                      {myCards.cards.map((c, i) => (
-                        <button key={i} onClick={() => { act({ kind: 'chanc-enact', index: i }); setMyCards(null); }} className="rounded">
-                          <PolicyCard policy={c} />
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-xs text-white/50">Tap the policy to ENACT.</p>
-                    {vetoUnlocked(sh.fasTrack) && !sh.vetoOffered && (
-                      <button
-                        onClick={() => act({ kind: 'veto-propose' })}
-                        className="rounded border border-white/20 px-3 py-1.5 text-sm"
-                      >
-                        Propose veto
-                      </button>
-                    )}
-                  </>
+                  <button onClick={() => { setLegisPick(null); setLegisModal(true); }} className="btn-accent">
+                    Choose policy
+                  </button>
                 ) : (
                   <p className="text-sm text-white/60">
                     Chancellor {nameOf(sh.chancellorId)} is choosing…
@@ -1190,6 +1258,43 @@ export default function SecretHitler({
                     <p className="text-sm text-amber-200">Veto proposed — President decides…</p>
                   ))}
               </div>
+            )}
+            {legisModal && sh.phase === 'legis-chanc' && iAmChanc && myCards?.context === 'chanc-hand' && (
+              <Modal title="Enact one" onClose={() => setLegisModal(false)}>
+                <p className="mb-3 text-sm text-white/70">
+                  Tap a policy to enact it.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {myCards.cards.map((c, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setLegisPick(i)}
+                      className={`rounded transition-all active:scale-95 ${legisPick === i ? 'ring-4 ring-[#f26838]' : 'ring-1 ring-black/10 hover:ring-2 hover:ring-black/25'}`}
+                    >
+                      <PolicyCard policy={c} />
+                    </button>
+                  ))}
+                </div>
+                {vetoUnlocked(sh.fasTrack) && !sh.vetoOffered && (
+                  <button
+                    onClick={() => { act({ kind: 'veto-propose' }); setLegisModal(false); }}
+                    className="mt-2 w-full rounded border border-white/20 px-3 py-2 text-sm text-white/80"
+                  >
+                    Propose veto instead
+                  </button>
+                )}
+                <ModalConfirm
+                  disabled={legisPick === null}
+                  onConfirm={() => {
+                    if (legisPick !== null) act({ kind: 'chanc-enact', index: legisPick });
+                    setLegisPick(null);
+                    setLegisModal(false);
+                    setMyCards(null);
+                  }}
+                >
+                  Enact
+                </ModalConfirm>
+              </Modal>
             )}
 
             {sh.phase === 'power' && sh.pendingPower && (
@@ -1320,47 +1425,56 @@ export default function SecretHitler({
 
         {/* right rail: reference material, sticky beside the action on desktop */}
         <div className="lg:col-start-2 lg:row-start-1 lg:sticky lg:top-4 space-y-3">
-        {/* role card — collapsed to one row by default to leave room for
-            the board; auto-opens once when a fresh role is dealt */}
-        <div
-          className="panel cut"
+        {/* role chip — the full reveal is a popup, board keeps the space */}
+        <button
+          onClick={() => setRoleModal(true)}
+          className="panel cut flex w-full items-center gap-2 text-left"
           style={myRole ? {
             borderLeft: `4px solid ${myRole === 'liberal' ? '#0F95B0' : '#F26838'}`,
-            background: myRole === 'liberal'
-              ? 'linear-gradient(150deg, rgba(15,149,176,0.22), transparent)'
-              : myRole === 'hitler'
-                ? 'linear-gradient(150deg, rgba(242,104,56,0.28), transparent)'
-                : 'linear-gradient(150deg, rgba(242,104,56,0.20), transparent)',
           } : undefined}
         >
-          <button onClick={() => setRoleOpen((v) => !v)} className="w-full text-left">
-            <div className="text-xs uppercase text-white/50">Your secret role — tap to {roleOpen ? 'hide' : 'reveal'}</div>
-            <div className="font-display text-2xl flex items-center gap-2">
-              {myRole ? (
-                <>
-                  {myRole === 'hitler' && <Crown size={22} className="sh-gold" />}
-                  <span style={{ color: myRole === 'liberal' ? '#0E7E96' : '#C74E1D' }}>
-                    {ROLE_LABEL[myRole]}
-                  </span>
-                </>
-              ) : (
-                '…waiting…'
-              )}
+          <div className="text-xs uppercase text-white/50">Your secret role — tap to view</div>
+          <div className="font-display ml-auto text-xl">
+            {myRole ? (
+              <span style={{ color: myRole === 'liberal' ? '#0E7E96' : '#C74E1D' }}>
+                {ROLE_LABEL[myRole]}
+              </span>
+            ) : (
+              '…waiting…'
+            )}
+          </div>
+        </button>
+        {roleModal && myRole && (
+          <Modal title={`You are: ${ROLE_LABEL[myRole]}`} onClose={() => setRoleModal(false)}>
+            <div className="flex gap-4">
+              <div className={`w-32 shrink-0 overflow-hidden rounded-xl border-2 ${myRole === 'liberal' ? 'border-[#0F95B0]' : 'border-[#F26838]'}`}>
+                <img
+                  src={myRole === 'liberal' ? policyLiberal : policyFascist}
+                  alt={`${ROLE_LABEL[myRole]} policy art`}
+                  className="block h-full w-full object-cover"
+                  draggable={false}
+                />
+              </div>
+              <div className="min-w-0 space-y-2 text-sm">
+                <p className="text-white/85">{ROLE_BLURB[myRole]}</p>
+                <p className="text-white/65">{ROLE_WIN[myRole].win}</p>
+                <p className="text-white/65">{ROLE_WIN[myRole].lose}</p>
+                {knownNames.length > 0 && (
+                  <p className="font-semibold text-[#f26838]">
+                    <Eye size={12} className="inline" /> You know: {knownNames.join(', ')}
+                  </p>
+                )}
+              </div>
             </div>
-          </button>
-          {roleOpen && myRole && (
-            <p className="text-xs text-white/60 mt-1">{ROLE_BLURB[myRole]}</p>
-          )}
-          {roleOpen && knownNames.length > 0 && (
-            <p className="text-xs text-red-300 mt-1">
-              <Eye size={12} className="inline" /> You know: {knownNames.join(', ')}
-            </p>
-          )}
-          {myInfo && <p className="text-xs text-amber-200 mt-1">{myInfo}</p>}
-          {!alive && (
-            <p className="text-sm text-white/60 mt-1">Executed — watch only.</p>
-          )}
-        </div>
+            {myInfo && <p className="mt-2 text-xs text-amber-200">{myInfo}</p>}
+            {!alive && (
+              <p className="mt-2 text-sm text-white/60">Executed — watch only.</p>
+            )}
+            <ModalConfirm onConfirm={() => setRoleModal(false)}>
+              Okay
+            </ModalConfirm>
+          </Modal>
+        )}
         {/* table */}
         <div className="panel cut">
           <div className="text-xs uppercase text-white/50 mb-1 flex items-center gap-1">
