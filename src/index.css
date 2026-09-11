@@ -18,7 +18,7 @@
 }
 
 /* One Night = Maastricht Blue room, Crayola Red accents.
-   Seamless: no boxed panels — red hairline rules structure the page. */
+   Seamless: no boxed panels — hairline rules structure the page. */
 [data-game='one-night'] .panel {
   background: transparent;
   border: none;
@@ -57,6 +57,46 @@
 [data-game='one-night'] .daybreak {
   background: linear-gradient(90deg, #e4234b, #011735, transparent);
   background-size: 200% 100%;
+}
+
+/* Secret Hitler + Judgement: same seamless treatment in their palettes. */
+[data-game='secret-hitler'] .panel {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 1.1rem 0 0.4rem;
+  position: relative;
+}
+[data-game='secret-hitler'] .panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(43, 33, 24, 0.28), rgba(43, 33, 24, 0.07) 60%, transparent);
+}
+[data-game='secret-hitler'] .cut {
+  clip-path: none;
+}
+[data-game='judgement'] .panel {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 1.1rem 0 0.4rem;
+  position: relative;
+}
+[data-game='judgement'] .panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(52, 211, 153, 0.5), rgba(52, 211, 153, 0.1) 60%, transparent);
+}
+[data-game='judgement'] .cut {
+  clip-path: none;
 }
 
 [data-game='secret-hitler'] {
@@ -193,10 +233,17 @@ body {
 }
 
 /* Per-game display + UI type.
-   Landing + Secret Hitler: Anton (condensed poster).
-   One Night: Anton display + Oswald UI (poster-style condensed grotesque). */
+   Landing: Anton. Secret Hitler: Cinzel (monumental roman, regime-poster
+   voice to match the art-deco box art). One Night: Anton (poster condensed).
+   Judgement: Fraunces (see below). */
 .font-display {
   font-family: 'Anton', Impact, 'Arial Narrow', sans-serif;
+}
+
+[data-game='secret-hitler'] .font-display {
+  font-family: 'Cinzel', Georgia, serif;
+  font-weight: 900;
+  letter-spacing: 0.06em;
 }
 
 [data-game='one-night'] .font-display {
@@ -259,6 +306,10 @@ body {
 
 [data-game='secret-hitler'] .btn-accent {
   box-shadow: 0 0 24px rgba(242, 104, 56, 0.45);
+}
+[data-game='secret-hitler'] .daybreak {
+  background: linear-gradient(90deg, #f26838, #0f95b0, transparent);
+  background-size: 200% 100%;
 }
 
 [data-game='judgement'] .btn-accent {

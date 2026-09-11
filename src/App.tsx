@@ -1056,7 +1056,8 @@ export default function App() {
   const onuActive = (pub?.game ?? 'one-night') === 'one-night';
 
   return (
-    <div data-game={shActive ? 'secret-hitler' : judActive ? 'judgement' : 'werewolf'} className="min-h-screen p-3 lg:p-6 max-w-6xl mx-auto space-y-3">
+    <div data-game={shActive ? 'secret-hitler' : judActive ? 'judgement' : 'werewolf'} className="min-h-screen p-3 lg:px-8 lg:py-5">
+      <div className="max-w-6xl mx-auto space-y-3">
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <HomeLogo
@@ -1341,6 +1342,7 @@ export default function App() {
       )}
       {showHelp && <HowToOverlay game={pub?.game === 'secret-hitler' ? 'sh' : pub?.game === 'judgement' ? 'judgement' : 'onuw'} onClose={() => setShowHelp(false)} />}
       {showDiag && <DiagnosticsOverlay onClose={() => setShowDiag(false)} />}
+      </div>
     </div>
   );
 }

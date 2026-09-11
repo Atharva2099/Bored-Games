@@ -1233,11 +1233,11 @@ export default function SecretHitler({
               <span className="font-display text-lg tracking-widest" style={{ color: '#0E7E96' }}>LIBERAL {sh.libTrack}/5</span>
               <span className="font-display text-lg tracking-widest" style={{ color: '#C74E1D' }}>{sh.fasTrack}/6 FASCIST</span>
             </div>
-            <div className="grid grid-cols-3 gap-2 lg:flex lg:gap-1">
+            <div className="grid grid-cols-5 gap-2 lg:flex lg:gap-1">
               {Array.from({ length: 5 }).map((_, i) => (
                 <span
                   key={i}
-                  className="aspect-[2/3] w-full min-w-0 overflow-hidden rounded-sm border flex items-center justify-center lg:aspect-auto lg:h-14 lg:flex-1"
+                  className="aspect-[2/3] w-full min-w-0 overflow-hidden rounded-sm border flex items-center justify-center lg:aspect-auto lg:h-20 lg:flex-1"
                   style={i < sh.libTrack
                     ? { background: '#E7F4F7', borderColor: '#0E7E96' }
                     : { background: 'rgba(15,149,176,0.08)', borderColor: 'rgba(15,149,176,0.35)' }}
@@ -1248,14 +1248,14 @@ export default function SecretHitler({
                 </span>
               ))}
             </div>
-            <div className="grid grid-cols-3 gap-2 lg:flex lg:gap-1">
+            <div className="grid grid-cols-6 gap-2 lg:flex lg:gap-1">
               {Array.from({ length: 6 }).map((_, i) => {
                 const filled = i < sh.fasTrack;
                 const power = powerForSlot(sh.players.length, i + 1);
                 return (
                   <span
                     key={i}
-                    className="aspect-[2/3] w-full min-w-0 overflow-hidden rounded-sm border flex flex-col items-center justify-center gap-1 lg:aspect-auto lg:h-24 lg:flex-1"
+                    className="aspect-[2/3] w-full min-w-0 overflow-hidden rounded-sm border flex flex-col items-center justify-center gap-1 lg:aspect-auto lg:h-20 lg:flex-1"
                     style={filled
                       ? { background: '#FDEEE4', borderColor: '#C74E1D' }
                       : { background: 'rgba(242,104,56,0.08)', borderColor: 'rgba(242,104,56,0.35)' }}

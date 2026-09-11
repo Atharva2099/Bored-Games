@@ -52,10 +52,10 @@ export function recommendedPool(totalPlayers: number): ONURole[] {
     4: ['villager'],
     5: ['villager', 'villager'],
     6: ['villager', 'tanner', 'drunk'],
-    7: ['villager', 'tanner', 'drunk', 'hunter'],
-    8: ['villager', 'tanner', 'drunk', 'hunter', 'minion'],
-    9: ['tanner', 'drunk', 'hunter', 'minion', 'mason', 'mason'],
-    10: ['tanner', 'drunk', 'hunter', 'minion', 'mason', 'mason', 'insomniac'],
+    7: ['werewolf', 'tanner', 'drunk', 'hunter'],
+    8: ['werewolf', 'tanner', 'drunk', 'hunter', 'minion'],
+    9: ['werewolf', 'drunk', 'hunter', 'minion', 'mason', 'mason'],
+    10: ['werewolf', 'drunk', 'hunter', 'minion', 'mason', 'mason', 'insomniac'],
   };
   pool.push(...(extra[totalPlayers] ?? []));
   return pool;
