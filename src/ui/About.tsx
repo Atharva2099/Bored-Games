@@ -39,6 +39,8 @@ export function SHFinePrint() {
           CC BY–NC–SA 4.0
         </a>
         : non-commercial fan adaptation, web-only, same license applies.
+        Policy card art is adapted from their print-and-play sheets — recoloured
+        and cropped.
       </span>
     </p>
   );

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Check, Copy, Share2 } from 'lucide-react';
 
-export type InviteGame = 'sh' | 'one-night';
+export type InviteGame = 'sh' | 'one-night' | 'judgement';
 
 export function joinUrl(roomCode: string, game?: InviteGame) {
   const base = `${window.location.origin}${window.location.pathname}`;
@@ -14,7 +14,10 @@ export function joinUrl(roomCode: string, game?: InviteGame) {
  * game param is present — e.g. hand-typed codes.
  */
 export function gameFromCode(roomCode: string): InviteGame {
-  return roomCode.trim().toUpperCase().startsWith('SH-') ? 'sh' : 'one-night';
+  const c = roomCode.trim().toUpperCase();
+  if (c.startsWith('SH-')) return 'sh';
+  if (c.startsWith('JUD-')) return 'judgement';
+  return 'one-night';
 }
 
 /**

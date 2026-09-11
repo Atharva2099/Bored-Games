@@ -9,6 +9,7 @@ import type {
   SHWinner,
 } from '../game/secret-hitler/logic';
 import type { ONURole } from '../game/one-night/logic';
+import type { Card, Suit } from '../game/judgement/logic';
 import { createWsRoom } from './ws-transport';
 
 export type { Player } from './presence';
@@ -67,8 +68,8 @@ export interface PublicState {
   winner?: 'villagers' | 'werewolves' | null;
   lastDead?: string | null;
   lastExiled?: string | null;
-  /** lobby game selection; Secret Hitler table mounts when set */
-  game?: 'werewolf' | 'secret-hitler' | 'one-night';
+  /** lobby game selection; Judgement table mounts when set */
+  game?: 'werewolf' | 'secret-hitler' | 'one-night' | 'judgement';
   [k: string]: unknown;
 }
 
@@ -223,6 +224,53 @@ export interface ONUActMsg {
   secondId?: string | null;
   index?: number;
   pair?: [number, number];
+  client: string;
+  [k: string]: unknown;
+}
+
+// ---------------- Judgement (original implementation) ----------------
+
+export type JUDPhase = 'bid' | 'play' | 'ended';
+
+export interface JUDPlay {
+  peerId: string;
+  card: Card;
+}
+
+export interface JUDPublic {
+  phase: JUDPhase;
+  players: Player[];
+  roundIndex: number;
+  handSize: number;
+  trump: Suit | null;
+  /** seats in bid/turn order for this round */
+  order: string[];
+  bids: Record<string, number>;
+  tricksWon: Record<string, number>;
+  /** cumulative totals */
+  scores: Record<string, number>;
+  /** per-round points, parallel to rounds played */
+  history: { roundIndex: number; points: Record<string, number> }[];
+  turnPeer: string | null;
+  leaderPeer: string | null;
+  trickIndex: number;
+  currentTrick: JUDPlay[];
+  winners: string[];
+  log: string[];
+  [k: string]: unknown;
+}
+
+/** Private: your current hand. */
+export interface JUDHandMsg {
+  cards: Card[];
+  roundIndex: number;
+  [k: string]: unknown;
+}
+
+export interface JUDActMsg {
+  kind: 'sync' | 'bid' | 'play';
+  bid?: number;
+  card?: Card;
   client: string;
   [k: string]: unknown;
 }

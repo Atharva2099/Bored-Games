@@ -21,5 +21,17 @@ You are free to share and adapt this folder's contents under these terms:
 Per the creators' terms, nothing using their game may be submitted to any
 app store. This project is web-only.
 
-All visuals and code in this folder are original to this project;
-no official card art or text is reproduced.
+Code in this folder is original to this project.
+
+Card art is NOT original: src/assets/policy-liberal.png and
+src/assets/policy-fascist.png are derived from the official Secret Hitler
+print-and-play PDF (https://www.secrethitler.com/assets/secret_hitler_print_and_play.pdf),
+used under CC BY-NC-SA 4.0.
+
+Changes made to that art, as the license requires us to state:
+- the Liberal and Fascist policy cards were cropped out of the print-and-play
+  sheets, and the Fascist card was rotated upright;
+- the surrounding page white was made transparent;
+- the grey print ink was recoloured to this project's blue and red.
+
+Everything else in this folder's UI is original.

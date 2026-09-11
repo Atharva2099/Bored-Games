@@ -1,7 +1,58 @@
 import { X } from 'lucide-react';
 
 /** Concise how-to-play overlay. Original wording. */
-export function HowToOverlay({ onClose, game = 'onuw' }: { onClose: () => void; game?: 'onuw' | 'sh' }) {
+export function HowToOverlay({ onClose, game = 'onuw' }: { onClose: () => void; game?: 'onuw' | 'sh' | 'judgement' }) {
+  if (game === 'judgement') {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/80 flex items-start justify-center p-4 overflow-auto">
+        <div className="panel cut max-w-md w-full my-8 space-y-4" data-game="judgement">
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-3xl">How to play Judgement</h2>
+            <button onClick={onClose} aria-label="Close" className="text-white/60">
+              <X size={20} />
+            </button>
+          </div>
+
+          <section className="space-y-1 text-sm text-white/75">
+            <h3 className="font-bold text-white">Bid exactly, or score nothing</h3>
+            <p>
+              3–8 players, one 52-card deck. Ten rounds deal 10 → 1 cards.
+              Before each round you bid how many tricks you will win. Win
+              exactly your bid to score 10 + bid. Win more or fewer and you
+              score 0 for the round.
+            </p>
+          </section>
+
+          <section className="space-y-1 text-sm text-white/75">
+            <h3 className="font-bold text-white">Bidding</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Bid 0 up to the hand size, one at a time in turn.</li>
+              <li>First bidder rotates every round.</li>
+              <li>Last bidder cannot pick the number that makes bids sum to tricks — someone must fail.</li>
+            </ul>
+          </section>
+
+          <section className="space-y-1 text-sm text-white/75">
+            <h3 className="font-bold text-white">Tricks</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Leader plays any card; you must follow the led suit if you can.</li>
+              <li>Highest trump wins, else highest card of the led suit. Off-suit cards never win.</li>
+              <li>Trick winner leads the next trick.</li>
+            </ul>
+          </section>
+
+          <section className="space-y-1 text-sm text-white/75">
+            <h3 className="font-bold text-white">Trump schedule</h3>
+            <p>10c No Trump · 9c Spades · 8c Hearts · 7c Clubs · 6c Diamonds · 5c No Trump · 4c Spades · 3c Hearts · 2c Clubs · 1c Diamonds.</p>
+          </section>
+
+          <button onClick={onClose} className="btn-accent">
+            Got it
+          </button>
+        </div>
+      </div>
+    );
+  }
   if (game === 'sh') {
     return (
       <div className="fixed inset-0 z-50 bg-black/80 flex items-start justify-center p-4 overflow-auto">

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Crown, Eye, Flame, Gavel, Repeat, ScrollText, Search, Skull, Users, Vote } from 'lucide-react';
+import { Crown, Eye, Gavel, Repeat, ScrollText, Search, Skull, Users, Vote } from 'lucide-react';
 import {
   assignSHRoles,
   buildPolicyDeck,
@@ -16,6 +16,8 @@ import {
   type Power,
   type SHRole,
 } from '../game/secret-hitler/logic';
+import policyFascist from '../assets/policy-fascist.png';
+import policyLiberal from '../assets/policy-liberal.png';
 import type { Player } from '../net/presence';
 import {
   type RoomHandle,
@@ -421,9 +423,12 @@ export default function SecretHitler({
       holderRef.current = cur.chancellorId
         ? { peerId: cur.chancellorId, context: 'chanc-hand' }
         : null;
+      // Clear the president's own hand BEFORE handing the pair on: when the host
+      // is the chancellor, tell() delivers to self via setMyCards, and clearing
+      // afterwards wiped it in the same batch — the table then deadlocked.
+      setMyCards(null);
       if (cur.chancellorId)
         tell(cur.chancellorId, 'shcards', { cards: kept, context: 'chanc-hand' });
-      setMyCards(null);
       push({ phase: 'legis-chanc', log: [...cur.log, 'President discarded. Chancellor to enact.'] });
       return;
     }
@@ -992,330 +997,385 @@ export default function SecretHitler({
 
   return (
     <div data-game="secret-hitler" className="space-y-3 lg:space-y-4">
-      <InvitePanel roomCode={roomCode} game="sh" />
+      <MiniTrack sh={sh} />
       <GameStatus sh={sh} selfId={selfId} nameOf={nameOf} />
-      {/* tracks */}
-      <div className="panel cut space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="font-display text-lg tracking-widest" style={{ color: '#7aa5ff' }}>LIBERAL {sh.libTrack}/5</span>
-          <span className="font-display text-lg tracking-widest" style={{ color: '#ff6b7a' }}>{sh.fasTrack}/6 FASCIST</span>
-        </div>
-        <div className="flex gap-1">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <span
-              key={i}
-              className="h-14 min-w-0 flex-1 rounded-sm border"
-              style={i < sh.libTrack
-                ? { background: 'linear-gradient(180deg,#3d7bff,#1e40af)', borderColor: '#7aa5ff' }
-                : { background: 'rgba(122,165,255,0.08)', borderColor: 'rgba(122,165,255,0.35)' }}
-            />
-          ))}
-        </div>
-        <div className="flex gap-1">
-          {Array.from({ length: 6 }).map((_, i) => {
-            const filled = i < sh.fasTrack;
-            const power = powerForSlot(sh.players.length, i + 1);
-            return (
-              <span
-                key={i}
-                className="h-24 min-w-0 flex-1 rounded-sm border flex flex-col items-center justify-center gap-1"
-                style={filled
-                  ? { background: 'linear-gradient(180deg,#f02a44,#a31226)', borderColor: '#ff6b7a' }
-                  : { background: 'rgba(255,107,122,0.07)', borderColor: 'rgba(255,107,122,0.35)' }}
-              >
-                <span className="text-white/35" style={{ fontSize: 12, fontWeight: 700 }}>{i + 1}</span>
-                <PowerGlyph power={power} />
-                {i === 4 && (
-                  <span className="sh-gold" style={{ fontSize: 14, fontWeight: 800, letterSpacing: '0.08em' }}>VETO</span>
+
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-5 lg:items-start space-y-3 lg:space-y-0">
+        {/* left column: on a phone the action comes first so the cards sit in
+            the opening screen; on a laptop the board takes back the top slot */}
+        <div className="lg:col-start-1 lg:row-start-1 flex flex-col gap-3">
+          <div className="order-1 lg:order-2">
+          <div key={sh.phase} className="phase-enter">
+            {sh.phase === 'nominate' && (
+              <div className="panel cut space-y-2">
+                <div className="font-semibold">
+                  President {nameOf(sh.presidentId)} nominates a Chancellor
+                </div>
+                {iAmPres ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    {aliveIds
+                      .filter((id) => id !== selfId)
+                      .map((id) => {
+                        const ok = eligible.includes(id);
+                        return (
+                          <button
+                            key={id}
+                            disabled={!ok}
+                            onClick={() => act({ kind: 'nominate', targetId: id })}
+                            className={`rounded px-2 py-1.5 text-sm border disabled:opacity-40 ${
+                              ok ? 'bg-black/30 border-white/10' : 'bg-black/30 border-white/10 line-through'
+                            }`}
+                          >
+                            {nameOf(id)}
+                          </button>
+                        );
+                      })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-white/60">Waiting on the President…</p>
                 )}
-              </span>
-            );
-          })}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs uppercase text-white/50">Election tracker</span>
-          <div className="flex gap-1">
-            {[0, 1, 2].map((i) => (
-              <span
-                key={i}
-                className="h-3 w-3 rounded-full border"
-                style={i < sh.tracker
-                  ? { background: '#fe8254', borderColor: '#fe8254' }
-                  : { borderColor: 'rgba(201,162,39,0.4)' }}
-              />
-            ))}
-          </div>
-          <span className="text-xs text-white/50 ml-auto">
-            Deck {sh.drawCount} · Discard {sh.discCount}
-            {vetoUnlocked(sh.fasTrack) ? ' · VETO LIVE' : ''}
-          </span>
-        </div>
-        <div className="text-xs text-white/50">
-          {(() => {
-            try {
-              const c = shRoleCounts(sh.players.length);
-              return (
-                <>
-                  <span style={{ color: '#7aa5ff' }}>{c.liberals} Liberal</span>
-                  {' · '}
-                  <span style={{ color: '#ff6b7a' }}>{c.fascists - 1} Fascist · 1 Hitler</span>
-                  {' · '}
-                </>
-              );
-            } catch {
-              return null;
-            }
-          })()}
-          Deck holds 6 Liberal + 11 Fascist policies
-        </div>
-        {sh.pendingPower && (
-          <div className="text-xs sh-gold font-bold uppercase">Power: {sh.pendingPower}</div>
-        )}
-      </div>
-
-      {/* role card — collapsed to one row by default to leave room for
-          the board; auto-opens once when a fresh role is dealt */}
-      <div
-        className="panel cut"
-        style={myRole ? {
-          borderLeft: `4px solid ${myRole === 'liberal' ? '#2f6fed' : '#d92038'}`,
-          background: myRole === 'liberal'
-            ? 'linear-gradient(150deg, rgba(47,111,237,0.22), rgba(11,14,26,0.6))'
-            : myRole === 'hitler'
-              ? 'linear-gradient(150deg, rgba(217,32,56,0.28), rgba(20,4,8,0.7))'
-              : 'linear-gradient(150deg, rgba(217,32,56,0.20), rgba(11,14,26,0.6))',
-        } : undefined}
-      >
-        <button onClick={() => setRoleOpen((v) => !v)} className="w-full text-left">
-          <div className="text-xs uppercase text-white/50">Your secret role — tap to {roleOpen ? 'hide' : 'reveal'}</div>
-          <div className="font-display text-2xl flex items-center gap-2">
-            {myRole ? (
-              <>
-                {myRole === 'hitler' && <Crown size={22} className="sh-gold" />}
-                <span style={{ color: myRole === 'liberal' ? '#7aa5ff' : '#ff6b7a' }}>
-                  {ROLE_LABEL[myRole]}
-                </span>
-              </>
-            ) : (
-              '…waiting…'
-            )}
-          </div>
-        </button>
-        {roleOpen && myRole && (
-          <p className="text-xs text-white/60 mt-1">{ROLE_BLURB[myRole]}</p>
-        )}
-        {roleOpen && knownNames.length > 0 && (
-          <p className="text-xs text-red-300 mt-1">
-            <Eye size={12} className="inline" /> You know: {knownNames.join(', ')}
-          </p>
-        )}
-        {myInfo && <p className="text-xs text-amber-200 mt-1">{myInfo}</p>}
-        {!alive && (
-          <p className="text-sm text-white/60 mt-1">Executed — watch only.</p>
-        )}
-      </div>
-
-      <div key={sh.phase} className="phase-enter">
-        {sh.phase === 'nominate' && (
-          <div className="panel cut space-y-2">
-            <div className="font-semibold">
-              President {nameOf(sh.presidentId)} nominates a Chancellor
-            </div>
-            {iAmPres ? (
-              <div className="grid grid-cols-2 gap-2">
-                {aliveIds
-                  .filter((id) => id !== selfId)
-                  .map((id) => {
-                    const ok = eligible.includes(id);
-                    return (
-                      <button
-                        key={id}
-                        disabled={!ok}
-                        onClick={() => act({ kind: 'nominate', targetId: id })}
-                        className={`rounded px-2 py-1.5 text-sm border disabled:opacity-40 ${
-                          ok ? 'bg-black/30 border-white/10' : 'bg-black/30 border-white/10 line-through'
-                        }`}
-                      >
-                        {nameOf(id)}
-                      </button>
-                    );
-                  })}
               </div>
-            ) : (
-              <p className="text-sm text-white/60">Waiting on the President…</p>
             )}
-          </div>
-        )}
 
-        {sh.phase === 'vote' && (
-          <div className="panel cut space-y-2">
-            <div className="font-semibold flex items-center gap-2">
-              <Vote size={16} /> Elect {nameOf(sh.presidentId)} + {nameOf(sh.chancellorId)}?
-            </div>
-            <div className="text-xs text-white/50">
-              {votedCount}/{aliveIds.length} voted · strict majority of the living passes
-            </div>
-            {alive ? (
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => act({ kind: 'vote', ja: true })}
-                  className="rounded py-5 font-display text-3xl tracking-widest border-2"
-                  style={myVote === true
-                    ? { background: 'linear-gradient(180deg,#3d7bff,#1e40af)', borderColor: '#7aa5ff', color: '#fff' }
-                    : { background: 'rgba(47,111,237,0.10)', borderColor: 'rgba(122,165,255,0.5)', color: '#7aa5ff' }}
-                >
-                  JA!
-                </button>
-                <button
-                  onClick={() => act({ kind: 'vote', ja: false })}
-                  className="rounded py-5 font-display text-3xl tracking-widest border-2"
-                  style={myVote === false
-                    ? { background: 'linear-gradient(180deg,#f02a44,#a31226)', borderColor: '#ff6b7a', color: '#fff' }
-                    : { background: 'rgba(217,32,56,0.10)', borderColor: 'rgba(255,107,122,0.5)', color: '#ff6b7a' }}
-                >
-                  NEIN!
-                </button>
-              </div>
-            ) : (
-              <p className="text-sm text-white/60">Executed players don&apos;t vote.</p>
-            )}
-            {isHost && (
-              <button
-                onClick={closeVote}
-                className="rounded border border-white/20 px-3 py-1.5 text-sm"
-              >
-                Close vote now
-              </button>
-            )}
-          </div>
-        )}
-
-        {sh.phase === 'legis-pres' && (
-          <div className="panel cut space-y-2">
-            <div className="font-semibold">President discards one, passes two</div>
-            {iAmPres && myCards?.context === 'pres-draw' ? (
-              <>
-                <div className="grid grid-cols-3 gap-2">
-                  {myCards.cards.map((c, i) => (
-                    <button key={i} onClick={() => { act({ kind: 'pres-discard', index: i }); setMyCards(null); }} className="rounded">
-                      <PolicyCard policy={c} />
-                    </button>
-                  ))}
+            {sh.phase === 'vote' && (
+              <div className="panel cut space-y-2">
+                <div className="font-semibold flex items-center gap-2">
+                  <Vote size={16} /> Elect {nameOf(sh.presidentId)} + {nameOf(sh.chancellorId)}?
                 </div>
-                <p className="text-xs text-white/50">Tap the policy to DISCARD.</p>
-              </>
-            ) : (
-              <p className="text-sm text-white/60">
-                President {nameOf(sh.presidentId)} is choosing…
-              </p>
-            )}
-          </div>
-        )}
-
-        {sh.phase === 'legis-chanc' && (
-          <div className="panel cut space-y-2">
-            <div className="font-semibold">Chancellor enacts one</div>
-            {iAmChanc && myCards?.context === 'chanc-hand' ? (
-              <>
-                <div className="grid grid-cols-2 gap-2">
-                  {myCards.cards.map((c, i) => (
-                    <button key={i} onClick={() => { act({ kind: 'chanc-enact', index: i }); setMyCards(null); }} className="rounded">
-                      <PolicyCard policy={c} />
-                    </button>
-                  ))}
+                <div className="text-xs text-white/50">
+                  {votedCount}/{aliveIds.length} voted · strict majority of the living passes
                 </div>
-                <p className="text-xs text-white/50">Tap the policy to ENACT.</p>
-                {vetoUnlocked(sh.fasTrack) && !sh.vetoOffered && (
+                {alive ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => act({ kind: 'vote', ja: true })}
+                      className="rounded py-5 font-display text-3xl tracking-widest border-2"
+                      style={myVote === true
+                        ? { background: 'linear-gradient(180deg,#3d7bff,#1e40af)', borderColor: '#7aa5ff', color: '#fff' }
+                        : { background: 'rgba(47,111,237,0.10)', borderColor: 'rgba(122,165,255,0.5)', color: '#7aa5ff' }}
+                    >
+                      JA!
+                    </button>
+                    <button
+                      onClick={() => act({ kind: 'vote', ja: false })}
+                      className="rounded py-5 font-display text-3xl tracking-widest border-2"
+                      style={myVote === false
+                        ? { background: 'linear-gradient(180deg,#f02a44,#a31226)', borderColor: '#ff6b7a', color: '#fff' }
+                        : { background: 'rgba(217,32,56,0.10)', borderColor: 'rgba(255,107,122,0.5)', color: '#ff6b7a' }}
+                    >
+                      NEIN!
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-white/60">Executed players don&apos;t vote.</p>
+                )}
+                {isHost && (
                   <button
-                    onClick={() => act({ kind: 'veto-propose' })}
+                    onClick={closeVote}
                     className="rounded border border-white/20 px-3 py-1.5 text-sm"
                   >
-                    Propose veto
+                    Close vote now
                   </button>
                 )}
-              </>
-            ) : (
-              <p className="text-sm text-white/60">
-                Chancellor {nameOf(sh.chancellorId)} is choosing…
-              </p>
+              </div>
             )}
-            {sh.vetoOffered &&
-              (iAmPres ? (
-                <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => act({ kind: 'veto-consent', agree: true })} className="rounded bg-white text-black font-bold py-1.5 text-sm">
-                    Agree veto
-                  </button>
-                  <button onClick={() => act({ kind: 'veto-consent', agree: false })} className="rounded border border-white/20 py-1.5 text-sm">
-                    Refuse
-                  </button>
+
+            {sh.phase === 'legis-pres' && (
+              <div className="panel cut space-y-2">
+                <div className="font-semibold">President discards one, passes two</div>
+                {iAmPres && myCards?.context === 'pres-draw' ? (
+                  <>
+                    <div className="grid grid-cols-3 gap-2">
+                      {myCards.cards.map((c, i) => (
+                        <button key={i} onClick={() => { act({ kind: 'pres-discard', index: i }); setMyCards(null); }} className="rounded">
+                          <PolicyCard policy={c} />
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-white/50">Tap the policy to DISCARD.</p>
+                  </>
+                ) : (
+                  <p className="text-sm text-white/60">
+                    President {nameOf(sh.presidentId)} is choosing…
+                  </p>
+                )}
+              </div>
+            )}
+
+            {sh.phase === 'legis-chanc' && (
+              <div className="panel cut space-y-2">
+                <div className="font-semibold">Chancellor enacts one</div>
+                {iAmChanc && myCards?.context === 'chanc-hand' ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      {myCards.cards.map((c, i) => (
+                        <button key={i} onClick={() => { act({ kind: 'chanc-enact', index: i }); setMyCards(null); }} className="rounded">
+                          <PolicyCard policy={c} />
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-white/50">Tap the policy to ENACT.</p>
+                    {vetoUnlocked(sh.fasTrack) && !sh.vetoOffered && (
+                      <button
+                        onClick={() => act({ kind: 'veto-propose' })}
+                        className="rounded border border-white/20 px-3 py-1.5 text-sm"
+                      >
+                        Propose veto
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-white/60">
+                    Chancellor {nameOf(sh.chancellorId)} is choosing…
+                  </p>
+                )}
+                {sh.vetoOffered &&
+                  (iAmPres ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button onClick={() => act({ kind: 'veto-consent', agree: true })} className="rounded bg-white text-black font-bold py-1.5 text-sm">
+                        Agree veto
+                      </button>
+                      <button onClick={() => act({ kind: 'veto-consent', agree: false })} className="rounded border border-white/20 py-1.5 text-sm">
+                        Refuse
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-amber-200">Veto proposed — President decides…</p>
+                  ))}
+              </div>
+            )}
+
+            {sh.phase === 'power' && sh.pendingPower && (
+              <PowerPanel
+                power={sh.pendingPower}
+                players={sh.players}
+                isPresident={iAmPres}
+                investigated={null}
+                peekCards={iAmPres && myCards?.context === 'peek' ? myCards.cards : null}
+                onTarget={(id) => act({ kind: 'power-target', targetId: id })}
+                onDone={() => { act({ kind: 'power-done' }); setMyCards(null); }}
+              />
+            )}
+
+            {sh.phase === 'ended' && (
+              <div
+                className="panel cut text-center space-y-2"
+                style={sh.winner === 'liberals'
+                  ? { borderTop: '4px solid #2f6fed', background: 'linear-gradient(180deg, rgba(47,111,237,0.20), transparent)' }
+                  : { borderTop: '4px solid #d92038', background: 'linear-gradient(180deg, rgba(217,32,56,0.22), transparent)' }}
+              >
+                <div
+                  className="font-display text-4xl uppercase"
+                  style={{ color: sh.winner === 'liberals' ? '#7aa5ff' : '#ff6b7a' }}
+                >
+                  {sh.winner} win!
                 </div>
-              ) : (
-                <p className="text-sm text-amber-200">Veto proposed — President decides…</p>
-              ))}
-          </div>
-        )}
-
-        {sh.phase === 'power' && sh.pendingPower && (
-          <PowerPanel
-            power={sh.pendingPower}
-            players={sh.players}
-            isPresident={iAmPres}
-            investigated={null}
-            peekCards={iAmPres && myCards?.context === 'peek' ? myCards.cards : null}
-            onTarget={(id) => act({ kind: 'power-target', targetId: id })}
-            onDone={() => { act({ kind: 'power-done' }); setMyCards(null); }}
-          />
-        )}
-
-        {sh.phase === 'ended' && (
-          <div
-            className="panel cut text-center space-y-2"
-            style={sh.winner === 'liberals'
-              ? { borderTop: '4px solid #2f6fed', background: 'linear-gradient(180deg, rgba(47,111,237,0.20), transparent)' }
-              : { borderTop: '4px solid #d92038', background: 'linear-gradient(180deg, rgba(217,32,56,0.22), transparent)' }}
-          >
-            <div
-              className="font-display text-4xl uppercase"
-              style={{ color: sh.winner === 'liberals' ? '#7aa5ff' : '#ff6b7a' }}
-            >
-              {sh.winner} win!
-            </div>
-            {isHost && (
-              <button onClick={onExit} className="btn-accent">
-                Back to lobby
-              </button>
+                {isHost && (
+                  <button onClick={onExit} className="btn-accent">
+                    Back to lobby
+                  </button>
+                )}
+              </div>
             )}
           </div>
-        )}
-      </div>
-
-      {/* table */}
-      <div className="panel cut">
-        <div className="text-xs uppercase text-white/50 mb-1 flex items-center gap-1">
-          <Users size={12} /> Table · {name} ({sh.players.length})
-          {sh.presidentId && <span className="ml-2">P: {nameOf(sh.presidentId)}</span>}
+          </div>
+          <div className="order-2 lg:order-1">
+          {/* tracks */}
+          <div className="panel cut space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-display text-lg tracking-widest" style={{ color: '#7aa5ff' }}>LIBERAL {sh.libTrack}/5</span>
+              <span className="font-display text-lg tracking-widest" style={{ color: '#ff6b7a' }}>{sh.fasTrack}/6 FASCIST</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 lg:flex lg:gap-1">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <span
+                  key={i}
+                  className="aspect-[2/3] w-full min-w-0 overflow-hidden rounded-sm border flex items-center justify-center lg:aspect-auto lg:h-14 lg:flex-1"
+                  style={i < sh.libTrack
+                    ? { background: '#eef3ff', borderColor: '#7aa5ff' }
+                    : { background: 'rgba(122,165,255,0.08)', borderColor: 'rgba(122,165,255,0.35)' }}
+                >
+                  {i < sh.libTrack && (
+                    <img src={policyLiberal} alt="Liberal policy enacted" className="h-full w-full object-contain" draggable={false} />
+                  )}
+                </span>
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-2 lg:flex lg:gap-1">
+              {Array.from({ length: 6 }).map((_, i) => {
+                const filled = i < sh.fasTrack;
+                const power = powerForSlot(sh.players.length, i + 1);
+                return (
+                  <span
+                    key={i}
+                    className="aspect-[2/3] w-full min-w-0 overflow-hidden rounded-sm border flex flex-col items-center justify-center gap-1 lg:aspect-auto lg:h-24 lg:flex-1"
+                    style={filled
+                      ? { background: '#fff0f0', borderColor: '#ff6b7a' }
+                      : { background: 'rgba(255,107,122,0.07)', borderColor: 'rgba(255,107,122,0.35)' }}
+                  >
+                    {filled ? (
+                      <img src={policyFascist} alt="Fascist policy enacted" className="h-full w-full object-contain" draggable={false} />
+                    ) : (
+                      <>
+                        <span className="text-white/35" style={{ fontSize: 12, fontWeight: 700 }}>{i + 1}</span>
+                        <PowerGlyph power={power} />
+                        {i === 4 && (
+                          <span className="sh-gold" style={{ fontSize: 14, fontWeight: 800, letterSpacing: '0.08em' }}>VETO</span>
+                        )}
+                      </>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase text-white/50">Election tracker</span>
+              <div className="flex gap-1">
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className="h-3 w-3 rounded-full border"
+                    style={i < sh.tracker
+                      ? { background: '#fe8254', borderColor: '#fe8254' }
+                      : { borderColor: 'rgba(201,162,39,0.4)' }}
+                  />
+                ))}
+              </div>
+              <span className="text-xs text-white/50 ml-auto">
+                Deck {sh.drawCount} · Discard {sh.discCount}
+                {vetoUnlocked(sh.fasTrack) ? ' · VETO LIVE' : ''}
+              </span>
+            </div>
+            <div className="text-xs text-white/50">
+              {(() => {
+                try {
+                  const c = shRoleCounts(sh.players.length);
+                  return (
+                    <>
+                      <span style={{ color: '#7aa5ff' }}>{c.liberals} Liberal</span>
+                      {' · '}
+                      <span style={{ color: '#ff6b7a' }}>{c.fascists - 1} Fascist · 1 Hitler</span>
+                      {' · '}
+                    </>
+                  );
+                } catch {
+                  return null;
+                }
+              })()}
+              Deck holds 6 Liberal + 11 Fascist policies
+            </div>
+            {sh.pendingPower && (
+              <div className="text-xs sh-gold font-bold uppercase">Power: {sh.pendingPower}</div>
+            )}
+          </div>
+          </div>
         </div>
-        <RosterList
-          players={sh.players}
-          extra={(p) =>
-            [
-              p.peerId === sh.presidentId ? 'P' : '',
-              p.peerId === sh.chancellorId ? 'C' : '',
-            ]
-              .filter(Boolean)
-              .join(' ')
-          }
-        />
-      </div>
 
-      <div className="panel cut">
-        <div className="text-xs uppercase text-white/50 mb-1">Game log</div>
-        <ul className="text-xs space-y-1 text-white/75 max-h-40 overflow-auto">
-          {[...sh.log].reverse().map((l, i) => (
-            <li key={i}>• {l}</li>
-          ))}
-        </ul>
+        {/* right rail: reference material, sticky beside the action on desktop */}
+        <div className="lg:col-start-2 lg:row-start-1 lg:sticky lg:top-4 space-y-3">
+        {/* role card — collapsed to one row by default to leave room for
+            the board; auto-opens once when a fresh role is dealt */}
+        <div
+          className="panel cut"
+          style={myRole ? {
+            borderLeft: `4px solid ${myRole === 'liberal' ? '#2f6fed' : '#d92038'}`,
+            background: myRole === 'liberal'
+              ? 'linear-gradient(150deg, rgba(47,111,237,0.22), rgba(11,14,26,0.6))'
+              : myRole === 'hitler'
+                ? 'linear-gradient(150deg, rgba(217,32,56,0.28), rgba(20,4,8,0.7))'
+                : 'linear-gradient(150deg, rgba(217,32,56,0.20), rgba(11,14,26,0.6))',
+          } : undefined}
+        >
+          <button onClick={() => setRoleOpen((v) => !v)} className="w-full text-left">
+            <div className="text-xs uppercase text-white/50">Your secret role — tap to {roleOpen ? 'hide' : 'reveal'}</div>
+            <div className="font-display text-2xl flex items-center gap-2">
+              {myRole ? (
+                <>
+                  {myRole === 'hitler' && <Crown size={22} className="sh-gold" />}
+                  <span style={{ color: myRole === 'liberal' ? '#7aa5ff' : '#ff6b7a' }}>
+                    {ROLE_LABEL[myRole]}
+                  </span>
+                </>
+              ) : (
+                '…waiting…'
+              )}
+            </div>
+          </button>
+          {roleOpen && myRole && (
+            <p className="text-xs text-white/60 mt-1">{ROLE_BLURB[myRole]}</p>
+          )}
+          {roleOpen && knownNames.length > 0 && (
+            <p className="text-xs text-red-300 mt-1">
+              <Eye size={12} className="inline" /> You know: {knownNames.join(', ')}
+            </p>
+          )}
+          {myInfo && <p className="text-xs text-amber-200 mt-1">{myInfo}</p>}
+          {!alive && (
+            <p className="text-sm text-white/60 mt-1">Executed — watch only.</p>
+          )}
+        </div>
+        {/* table */}
+        <div className="panel cut">
+          <div className="text-xs uppercase text-white/50 mb-1 flex items-center gap-1">
+            <Users size={12} /> Table · {name} ({sh.players.length})
+            {sh.presidentId && <span className="ml-2">P: {nameOf(sh.presidentId)}</span>}
+          </div>
+          <RosterList
+            players={sh.players}
+            extra={(p) =>
+              [
+                p.peerId === sh.presidentId ? 'P' : '',
+                p.peerId === sh.chancellorId ? 'C' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')
+            }
+          />
+        </div>
+        <div className="panel cut">
+          <div className="text-xs uppercase text-white/50 mb-1">Game log</div>
+          <ul className="text-xs space-y-1 text-white/75 max-h-40 overflow-auto">
+            {[...sh.log].reverse().map((l, i) => (
+              <li key={i}>• {l}</li>
+            ))}
+          </ul>
+        </div>
+        <InvitePanel roomCode={roomCode} game="sh" />
+        </div>
       </div>
+    </div>
+  );
+}
+
+/** Sticky one-line score strip for phones — the full board is far too tall to pin. */
+function MiniTrack({ sh }: { sh: SHPublic }) {
+  return (
+    <div className="lg:hidden sticky top-0 z-20 -mx-3 flex items-center gap-2 border-b border-white/10 bg-[#3f5a62]/95 px-3 py-1.5 backdrop-blur">
+      <div className="flex flex-1 gap-0.5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <span
+            key={i}
+            className="h-2.5 flex-1 rounded-sm"
+            style={i < sh.libTrack
+              ? { background: '#3d7bff' }
+              : { background: 'rgba(122,165,255,0.18)' }}
+          />
+        ))}
+      </div>
+      <div className="flex flex-1 gap-0.5">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <span
+            key={i}
+            className="h-2.5 flex-1 rounded-sm"
+            style={i < sh.fasTrack
+              ? { background: '#f02a44' }
+              : { background: 'rgba(255,107,122,0.18)' }}
+          />
+        ))}
+      </div>
+      <span className="shrink-0 whitespace-nowrap text-[10px] font-bold uppercase tracking-wide text-white/70">
+        {sh.libTrack}/5 · {sh.fasTrack}/6 · T{sh.tracker}
+      </span>
     </div>
   );
 }
@@ -1394,11 +1454,14 @@ function GameStatus({
 
 function PolicyCard({ policy, dim }: { policy: Policy; dim?: boolean }) {
   const lib = policy === 'liberal';
-  const Icon = lib ? Vote : Flame;
   return (
     <div className={`sh-card ${lib ? 'sh-card-lib' : 'sh-card-fas'}${dim ? ' opacity-60' : ''}`}>
-      <Icon size={44} className="mx-auto" strokeWidth={2} />
-      <div className="sh-card-label">{lib ? 'Liberal' : 'Fascist'}</div>
+      <img
+        src={lib ? policyLiberal : policyFascist}
+        alt={lib ? 'Liberal policy' : 'Fascist policy'}
+        className="mx-auto block w-full"
+        draggable={false}
+      />
     </div>
   );
 }

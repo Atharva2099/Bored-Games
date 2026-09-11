@@ -21,6 +21,7 @@ import { HomeLogo, Landing, type GamePick } from './ui/Landing';
 import { AvatarGrid } from './ui/Roster';
 import SecretHitler from './ui/SecretHitler';
 import OneNight from './ui/OneNight';
+import Judgement from './ui/Judgement';
 import {
   makeRoomCode,
 } from './game/one-night/logic';
@@ -46,7 +47,7 @@ import {
 
 const initialPublic = (
   players: { peerId: string; name: string }[],
-  game: 'werewolf' | 'secret-hitler' | 'one-night' = 'one-night',
+  game: 'werewolf' | 'secret-hitler' | 'one-night' | 'judgement' = 'one-night',
 ): PublicState => ({
   phase: 'lobby',
   players: players.map((p) => ({ ...p, alive: true, online: true })),
@@ -57,7 +58,7 @@ const initialPublic = (
   game,
 });
 
-function joinUrl(roomCode: string, game?: 'sh' | 'one-night') {
+function joinUrl(roomCode: string, game?: 'sh' | 'one-night' | 'judgement') {
   const base = `${window.location.origin}${window.location.pathname}`;
   return `${base}?room=${encodeURIComponent(roomCode)}${game ? `&game=${game}` : ''}`;
 }
@@ -149,8 +150,13 @@ export default function App() {
     const room = params.get('room');
     if (!room) return null;
     const g = params.get('game');
-    if (g === 'sh' || g === 'one-night') return g === 'sh' ? 'sh' : 'werewolf';
-    return room.trim().toUpperCase().startsWith('SH-') ? 'sh' : 'werewolf';
+    if (g === 'sh') return 'sh';
+    if (g === 'judgement') return 'judgement';
+    if (g === 'one-night') return 'werewolf';
+    const upper = room.trim().toUpperCase();
+    if (upper.startsWith('SH-')) return 'sh';
+    if (upper.startsWith('JUD-')) return 'judgement';
+    return 'werewolf';
   });
   const [isHost, setIsHost] = useState(false);
   const [handle, setHandle] = useState<RoomHandle | null>(null);
@@ -631,7 +637,9 @@ export default function App() {
               ? `bg-shhost-${roomCode}`
               : (saved.pub as PublicState).game === 'one-night'
                 ? `bg-onuhost-${roomCode}`
-                : null;
+                : (saved.pub as PublicState).game === 'judgement'
+                  ? `bg-judhost-${roomCode}`
+                  : null;
           if (gameSaveKey) {
             let gameSave: string | null = null;
             try {
@@ -652,7 +660,7 @@ export default function App() {
       } catch {
         seed = initialPublic(
           [{ peerId: selfId, name: myName }],
-          selected === 'sh' ? 'secret-hitler' : 'one-night',
+          selected === 'sh' ? 'secret-hitler' : selected === 'judgement' ? 'judgement' : 'one-night',
         );
       }
       clientToPeer.current[clientId] = selfId;
@@ -736,7 +744,7 @@ export default function App() {
     sendersRef.current?.sendPub(p as unknown as Record<string, unknown>);
   };
 
-  const pickGame = (game: 'werewolf' | 'secret-hitler' | 'one-night') => {
+  const pickGame = (game: 'werewolf' | 'secret-hitler' | 'one-night' | 'judgement') => {
     if (!isHost || !pub) return;
     sendPubState({ ...pub, game });
   };
@@ -812,6 +820,20 @@ export default function App() {
     });
   };
 
+  const startJUD = () => {
+    if (!handle || !pub) return;
+    const n = pub.players.length;
+    if (n < 3 || n > 8) {
+      alert('Judgement needs 3-8 players.');
+      return;
+    }
+    sendPubState({
+      ...pub,
+      game: 'judgement',
+      log: [...pub.log, 'Judgement table opening…'].slice(-50),
+    });
+  };
+
   const exitSH = () => {
     if (!pub) return;
     sendPubState({
@@ -846,6 +868,33 @@ export default function App() {
     });
   };
 
+  const exitJUD = () => {
+    if (!pub) return;
+    try {
+      const keys: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('bg-judhost-') || k.startsWith('bg-judhand-'))) keys.push(k);
+      }
+      keys.forEach((k) => localStorage.removeItem(k));
+    } catch {
+      /* ignore */
+    }
+    sendPubState({
+      ...pub,
+      game: 'judgement',
+      phase: 'lobby',
+      players: pub.players.map((p) => ({ ...p, alive: true })),
+      dayCount: 1,
+      votes: {},
+      ready: [],
+      winner: null,
+      lastDead: null,
+      lastExiled: null,
+      log: [...pub.log, 'Back to lobby. Host can start again.'].slice(-50),
+    });
+  };
+
   const leaveRoom = () => {
     cancelSpeech();
     handle?.leave();
@@ -857,7 +906,7 @@ export default function App() {
       const keys: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k.startsWith('bg-host-')) keys.push(k);
+        if (k && (k.startsWith('bg-host-') || k.startsWith('bg-judhost-') || k.startsWith('bg-judhand-'))) keys.push(k);
       }
       keys.forEach((k) => localStorage.removeItem(k));
     } catch {
@@ -907,9 +956,10 @@ export default function App() {
 
   if (!inRoom) {
     const isSH = selected === 'sh';
+    const isJUD = selected === 'judgement';
     return (
       <>
-        <div data-game={isSH ? 'secret-hitler' : 'one-night'} className="min-h-screen flex items-center justify-center p-4">
+        <div data-game={isSH ? 'secret-hitler' : isJUD ? 'judgement' : 'one-night'} className="min-h-screen flex items-center justify-center p-4">
         <div className="w-full max-w-sm bg-white/5 cut p-6 space-y-4 border border-white/10">
           <div className="flex items-center justify-between">
             <HomeLogo onHome={() => setSelected(null)} />
@@ -919,6 +969,8 @@ export default function App() {
           </div>
           {isSH ? (
             <h1 className="font-display text-4xl flex items-center gap-2"><Gavel size={30} /> Secret Hitler</h1>
+          ) : isJUD ? (
+            <h1 className="font-display text-4xl flex items-center gap-2"><Gavel size={30} /> Judgement</h1>
           ) : (
             <h1 className="font-display text-4xl flex items-center gap-2"><Moon size={30} /> One Night</h1>
           )}
@@ -926,6 +978,11 @@ export default function App() {
             <p className="text-sm text-white/70">
               Secret Hitler over the internet with a room code. No server, no
               sign-up. One Host, everyone joins.
+            </p>
+          ) : isJUD ? (
+            <p className="text-sm text-white/70">
+              Judgement over the internet with a room code. No server, no
+              sign-up. Bid your tricks exactly or score zero. 3–8 players.
             </p>
           ) : (
             <p className="text-sm text-white/70">
@@ -941,7 +998,7 @@ export default function App() {
             className="w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2 outline-none"
           />
           <button
-            onClick={() => void join(true, makeRoomCode(isSH ? 'SH' : 'NIGHT'), name)}
+            onClick={() => void join(true, makeRoomCode(isSH ? 'SH' : isJUD ? 'JUD' : 'NIGHT'), name)}
             className="btn-accent w-full"
           >
             Create a room
@@ -956,7 +1013,7 @@ export default function App() {
           <input
             value={roomCode}
             onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-            placeholder="NIGHT-XXXXXX"
+            placeholder={isJUD ? 'JUD-XXXXXX' : 'NIGHT-XXXXXX'}
             className="w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2 outline-none font-mono"
           />
           <button
@@ -977,10 +1034,10 @@ export default function App() {
               Diagnostics
             </button>
           </p>
-          {isSH ? <SHFinePrint /> : <OneNightFinePrint />}
+          {isSH ? <SHFinePrint /> : isJUD ? <OneNightFinePrint /> : <OneNightFinePrint />}
         </div>
       </div>
-      {showHelp && <HowToOverlay game={isSH ? 'sh' : 'onuw'} onClose={() => setShowHelp(false)} />}
+      {showHelp && <HowToOverlay game={isSH ? 'sh' : isJUD ? 'judgement' : 'onuw'} onClose={() => setShowHelp(false)} />}
       {showDiag && <DiagnosticsOverlay onClose={() => setShowDiag(false)} />}
       </>
     );
@@ -988,10 +1045,11 @@ export default function App() {
 
   const phase = pub?.phase ?? 'lobby';
   const shActive = pub?.game === 'secret-hitler';
+  const judActive = pub?.game === 'judgement';
   const onuActive = (pub?.game ?? 'one-night') === 'one-night';
 
   return (
-    <div data-game="werewolf" className="min-h-screen p-3 lg:p-6 max-w-6xl mx-auto space-y-3">
+    <div data-game={shActive ? 'secret-hitler' : judActive ? 'judgement' : 'werewolf'} className="min-h-screen p-3 lg:p-6 max-w-6xl mx-auto space-y-3">
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <HomeLogo
@@ -1054,6 +1112,17 @@ export default function App() {
           onAddBot={addBot}
           onRemoveBot={removeBot}
         />
+      ) : judActive && pub && handle ? (
+        <Judgement
+          handle={handle}
+          roomCode={roomCode}
+          name={name}
+          isHost={isHost}
+          initialRoster={pub.players}
+          onExit={exitJUD}
+          onAddBot={addBot}
+          onRemoveBot={removeBot}
+        />
       ) : onuActive && pub && handle ? (
         <OneNight
           handle={handle}
@@ -1071,11 +1140,11 @@ export default function App() {
         <div className="panel cut space-y-3 lg:grid lg:grid-cols-2 lg:gap-6 max-w-4xl">
           <div className="flex gap-3 items-center">
             <div className="bg-white p-2 rounded">
-              <QRCodeSVG value={joinUrl(roomCode, (pub?.game ?? 'one-night') === 'secret-hitler' ? 'sh' : 'one-night')} size={110} />
+              <QRCodeSVG value={joinUrl(roomCode, (pub?.game ?? 'one-night') === 'secret-hitler' ? 'sh' : (pub?.game ?? 'one-night') === 'judgement' ? 'judgement' : 'one-night')} size={110} />
             </div>
             <div className="text-sm text-white/75">
               <div className="font-semibold text-white">Scan to join</div>
-              <div className="font-mono break-all">{joinUrl(roomCode, (pub?.game ?? 'one-night') === 'secret-hitler' ? 'sh' : 'one-night')}</div>
+              <div className="font-mono break-all">{joinUrl(roomCode, (pub?.game ?? 'one-night') === 'secret-hitler' ? 'sh' : (pub?.game ?? 'one-night') === 'judgement' ? 'judgement' : 'one-night')}</div>
               {window.location.hostname === 'localhost' && (
                 <div className="mt-1 text-amber-200/90">
                   Dev mode: this QR points at localhost, so phones can't use
@@ -1086,11 +1155,13 @@ export default function App() {
               <div className="mt-1">
                 {(pub?.game ?? 'one-night') === 'secret-hitler'
                   ? 'Secret Hitler needs 5-10 players.'
-                  : 'One Night needs 3-10 players · 3 cards in the center.'}
+                  : (pub?.game ?? 'one-night') === 'judgement'
+                    ? 'Judgement needs 3-8 players · 10 rounds, 10 → 1 cards.'
+                    : 'One Night needs 3-10 players · 3 cards in the center.'}
               </div>
               <div className="mt-2 flex gap-2">
                 <button
-                  onClick={() => copyField('link', joinUrl(roomCode, (pub?.game ?? 'one-night') === 'secret-hitler' ? 'sh' : 'one-night'))}
+                  onClick={() => copyField('link', joinUrl(roomCode, (pub?.game ?? 'one-night') === 'secret-hitler' ? 'sh' : (pub?.game ?? 'one-night') === 'judgement' ? 'judgement' : 'one-night'))}
                   className="rounded border border-white/20 px-2 py-1 text-xs flex items-center gap-1"
                 >
                   {copiedField === 'link' ? (
@@ -1176,7 +1247,7 @@ export default function App() {
           )}
           {isHost ? (
             <div className="lg:col-span-2 space-y-2">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => pickGame('one-night')}
                   className={`rounded px-2 py-2 text-sm font-bold border ${
@@ -1197,10 +1268,24 @@ export default function App() {
                 >
                   Secret Hitler
                 </button>
+                <button
+                  onClick={() => pickGame('judgement')}
+                  className={`rounded px-2 py-2 text-sm font-bold border ${
+                    pub?.game === 'judgement'
+                      ? 'bg-[#34d399] text-black border-transparent'
+                      : 'bg-black/30 border-white/15 text-white/70'
+                  }`}
+                >
+                  Judgement
+                </button>
               </div>
               {pub?.game === 'secret-hitler' ? (
                 <button onClick={startSH} className="btn-accent">
                   Start Secret Hitler ({pub?.players.length ?? 0})
+                </button>
+              ) : pub?.game === 'judgement' ? (
+                <button onClick={startJUD} className="btn-accent">
+                  Start Judgement ({pub?.players.length ?? 0})
                 </button>
               ) : (
                 <button onClick={startON} className="btn-accent">
@@ -1213,7 +1298,9 @@ export default function App() {
               Waiting for host to start…
               {pub?.game === 'secret-hitler'
                 ? ' Secret Hitler table opening.'
-                : ' One night falls…'}
+                : pub?.game === 'judgement'
+                  ? ' Judgement table opening.'
+                  : ' One night falls…'}
             </p>
           )}
         </div>
@@ -1242,7 +1329,7 @@ export default function App() {
       )}
         </>
       )}
-      {showHelp && <HowToOverlay game={pub?.game === 'secret-hitler' ? 'sh' : 'onuw'} onClose={() => setShowHelp(false)} />}
+      {showHelp && <HowToOverlay game={pub?.game === 'secret-hitler' ? 'sh' : pub?.game === 'judgement' ? 'judgement' : 'onuw'} onClose={() => setShowHelp(false)} />}
       {showDiag && <DiagnosticsOverlay onClose={() => setShowDiag(false)} />}
     </div>
   );
