@@ -81,9 +81,9 @@ export function Landing({ onPick }: { onPick: (g: GamePick) => void }) {
               style={display}
               className="text-4xl uppercase leading-none"
             >
-              One <span className="text-[#92a9e1]">Night</span>
+              One <span className="text-[#e4234b]">Night</span>
             </div>
-            <span className="text-xs font-bold bg-[#92a9e1] text-black px-2 py-1 uppercase">
+            <span className="text-xs font-bold bg-[#e4234b] text-[#011735] px-2 py-1 uppercase">
               Live
             </span>
           </div>

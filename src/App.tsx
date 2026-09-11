@@ -834,8 +834,13 @@ export default function App() {
     });
   };
 
+  // bumped on every exit-to-lobby; games use it to clear their internal
+  // state (they don't watch pub.phase — see exitON et al)
+  const [gameReset, setGameReset] = useState(0);
+
   const exitSH = () => {
     if (!pub) return;
+    setGameReset((t) => t + 1);
     sendPubState({
       ...pub,
       game: 'werewolf',
@@ -853,6 +858,7 @@ export default function App() {
 
   const exitON = () => {
     if (!pub) return;
+    setGameReset((t) => t + 1);
     sendPubState({
       ...pub,
       game: 'one-night',
@@ -870,6 +876,7 @@ export default function App() {
 
   const exitJUD = () => {
     if (!pub) return;
+    setGameReset((t) => t + 1);
     try {
       const keys: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
@@ -1111,6 +1118,7 @@ export default function App() {
           onExit={exitSH}
           onAddBot={addBot}
           onRemoveBot={removeBot}
+          resetToken={gameReset}
         />
       ) : judActive && pub && handle ? (
         <Judgement
@@ -1122,6 +1130,7 @@ export default function App() {
           onExit={exitJUD}
           onAddBot={addBot}
           onRemoveBot={removeBot}
+          resetToken={gameReset}
         />
       ) : onuActive && pub && handle ? (
         <OneNight
@@ -1133,6 +1142,7 @@ export default function App() {
           onExit={exitON}
           onAddBot={addBot}
           onRemoveBot={removeBot}
+          resetToken={gameReset}
         />
       ) : (
         <>
@@ -1252,7 +1262,7 @@ export default function App() {
                   onClick={() => pickGame('one-night')}
                   className={`rounded px-2 py-2 text-sm font-bold border ${
                     (pub?.game ?? 'one-night') === 'one-night'
-                      ? 'bg-[#92a9e1] text-black border-transparent'
+                      ? 'bg-[#e4234b] text-[#011735] border-transparent'
                       : 'bg-black/30 border-white/15 text-white/70'
                   }`}
                 >

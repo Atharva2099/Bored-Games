@@ -1,20 +1,62 @@
 @import "tailwindcss";
 
 /* Game palettes.
-   One Night = Lavender Haze #92A9E1 on AMOLED black (moonlit noir).
-   Secret Hitler = liberal sapphire vs fascist crimson on dark ink,
-   gold chrome (art-deco official vibe).
-   Scope per game with data-game="one-night" | "secret-hitler". */
+   One Night = Maastricht Blue #011735 room, Crayola Red #E4234B accents.
+   Secret Hitler = cream paper 凝脂, 朱膘 orange vs 春梅蓝 teal.
+   Judgement = deep jungle green + emerald.
+   Scope per game with data-game="one-night" | "secret-hitler" | "judgement". */
 :root,
 [data-game='one-night'] {
-  --bg: #000;
-  --panel: rgba(146, 169, 225, 0.08);
-  --accent: #92a9e1;
-  --accent-ink: #000;
-  --avatar-ring: #92a9e1;
-  --avatar-bg: rgba(146, 169, 225, 0.08);
+  --bg: #011735;
+  --panel: rgba(228, 35, 75, 0.09);
+  --accent: #e4234b;
+  --accent-ink: #011735;
+  --avatar-ring: #e4234b;
+  --avatar-bg: rgba(228, 35, 75, 0.1);
   --avatar-bot: #c084fc;
   --avatar-bot-bg: rgba(192, 132, 252, 0.1);
+}
+
+/* One Night = Maastricht Blue room, Crayola Red accents.
+   Seamless: no boxed panels — red hairline rules structure the page. */
+[data-game='one-night'] .panel {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 1.1rem 0 0.4rem;
+  position: relative;
+}
+[data-game='one-night'] .panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(228, 35, 75, 0.55), rgba(228, 35, 75, 0.1) 60%, transparent);
+}
+[data-game='one-night'] .cut {
+  clip-path: none;
+}
+/* control chips: minimal, no boxy borders */
+[data-game='one-night'] .border-white\/10 {
+  border-color: rgba(228, 35, 75, 0.25);
+}
+[data-game='one-night'] .border-white\/15 {
+  border-color: rgba(228, 35, 75, 0.3);
+}
+[data-game='one-night'] .border-white\/20 {
+  border-color: rgba(228, 35, 75, 0.35);
+}
+[data-game='one-night'] .bg-black\/30 {
+  background-color: rgba(228, 35, 75, 0.08);
+}
+[data-game='one-night'] .btn-accent {
+  box-shadow: 0 0 24px rgba(228, 35, 75, 0.4);
+}
+[data-game='one-night'] .daybreak {
+  background: linear-gradient(90deg, #e4234b, #011735, transparent);
+  background-size: 200% 100%;
 }
 
 [data-game='secret-hitler'] {
@@ -150,16 +192,16 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
 }
 
-/* Per-game display type.
+/* Per-game display + UI type.
    Landing + Secret Hitler: Anton (condensed poster).
-   Werewolf: Pirata One (gothic blackletter, moonlit-noir identity). */
+   One Night: Anton display + Oswald UI (poster-style condensed grotesque). */
 .font-display {
   font-family: 'Anton', Impact, 'Arial Narrow', sans-serif;
 }
 
 [data-game='one-night'] .font-display {
-  font-family: 'Pirata One', 'Anton', Impact, serif;
-  letter-spacing: 0.02em;
+  font-family: 'Anton', Impact, 'Arial Narrow', sans-serif;
+  letter-spacing: 0.015em;
 }
 
 /* Secret Hitler policy cards — sapphire vs crimson, gold inner frame. */

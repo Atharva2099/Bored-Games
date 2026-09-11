@@ -69,6 +69,8 @@ interface Props {
   onExit: () => void;
   onAddBot: () => void;
   onRemoveBot: (peerId: string) => void;
+  /** bumped by App on exit-to-lobby; clears all internal game state */
+  resetToken: number;
 }
 
 export default function SecretHitler({
@@ -80,6 +82,7 @@ export default function SecretHitler({
   onExit,
   onAddBot,
   onRemoveBot,
+  resetToken,
 }: Props) {
   const selfId = handle.selfId;
   const clientId = getClient();
@@ -147,6 +150,37 @@ export default function SecretHitler({
   const isHostRef = useRef(isHost);
   const initedRef = useRef(false);
   isHostRef.current = isHost;
+
+  // exit-to-lobby: wipe internal state + host saves so the next seat is clean
+  const firstRenderRef = useRef(true);
+  useEffect(() => {
+    if (firstRenderRef.current) {
+      firstRenderRef.current = false;
+      return;
+    }
+    if (resetToken === 0) return;
+    shRef.current = null;
+    setSh(null);
+    setMyRole(null);
+    setKnownNames([]);
+    setMyCards(null);
+    setMyInfo(null);
+    deckRef.current = [];
+    discardsRef.current = [];
+    drawnRef.current = [];
+    holderRef.current = null;
+    votesRef.current = {};
+    investigatedRef.current = new Set();
+    specialCallerRef.current = null;
+    specialActiveRef.current = false;
+    try {
+      localStorage.removeItem('bg-shrole');
+      localStorage.removeItem(`bg-shhost-${roomCode}`);
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetToken]);
 
   const push = (patch: Partial<SHPublic>, target?: string | string[]) => {
     const cur = shRef.current;

@@ -41,6 +41,8 @@ interface Props {
   onExit: () => void;
   onAddBot: () => void;
   onRemoveBot: (peerId: string) => void;
+  /** bumped by App on exit-to-lobby; clears all internal game state */
+  resetToken: number;
 }
 
 function botBid(handSize: number, existing: number, isLast: boolean): number {
@@ -76,6 +78,7 @@ export default function Judgement({
   onExit,
   onAddBot,
   onRemoveBot,
+  resetToken,
 }: Props) {
   const selfId = handle.selfId;
   const clientId = getClient();
@@ -104,6 +107,29 @@ export default function Judgement({
   const initedRef = useRef(false);
   isHostRef.current = isHost;
   judRef.current = jud;
+
+  // exit-to-lobby: wipe internal state + host saves so the next seat is clean
+  const firstRenderRef = useRef(true);
+  useEffect(() => {
+    if (firstRenderRef.current) {
+      firstRenderRef.current = false;
+      return;
+    }
+    if (resetToken === 0) return;
+    judRef.current = null;
+    setJud(null);
+    setHand([]);
+    setPendingBid(null);
+    setPendingPlay(null);
+    handsRef.current = {};
+    try {
+      localStorage.removeItem(`bg-judhost-${roomCode}`);
+      localStorage.removeItem(`bg-judhand-${roomCode}`);
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetToken]);
 
   const nameOf = (peerId: string | null): string =>
     judRef.current?.players.find((p) => p.peerId === peerId)?.name ?? '?';

@@ -86,6 +86,8 @@ interface Props {
   onExit: () => void;
   onAddBot: () => void;
   onRemoveBot: (peerId: string) => void;
+  /** bumped by App on exit-to-lobby; clears all internal game state */
+  resetToken: number;
 }
 
 export default function OneNight({
@@ -97,6 +99,7 @@ export default function OneNight({
   onExit,
   onAddBot,
   onRemoveBot,
+  resetToken,
 }: Props) {
   const selfId = handle.selfId;
   const clientId = getClient();
@@ -144,6 +147,36 @@ export default function OneNight({
   const isHostRef = useRef(isHost);
   const initedRef = useRef(false);
   isHostRef.current = isHost;
+
+  // exit-to-lobby: clear every piece of internal game state so the next
+  // seat starts clean (the component ignores pub.phase on purpose)
+  const firstRenderRef = useRef(true);
+  useEffect(() => {
+    if (firstRenderRef.current) {
+      firstRenderRef.current = false;
+      return;
+    }
+    if (resetToken === 0) return;
+    onuRef.current = null;
+    setOnu(null);
+    setMyRole(null);
+    setKin([]);
+    setLoneWolf(false);
+    setSeen(null);
+    setPicked(null);
+    seenRef.current = {};
+    votesRef.current = {};
+    inputsRef.current = emptyInputs();
+    finalRef.current = {};
+    hunterPointRef.current = null;
+    try {
+      localStorage.removeItem('bg-onurole');
+      localStorage.removeItem(`bg-onuhost-${roomCode}`);
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetToken]);
 
   const push = (patch: Partial<ONUPublic>, target?: string | string[]) => {
     const cur = onuRef.current;
@@ -1044,10 +1077,10 @@ function NightActions(props: {
       {role === 'seer' && (
         <>
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => setSeerMode('player')} className={`rounded px-2 py-1.5 text-sm border ${seerMode === 'player' ? 'bg-[#92a9e1] text-black' : 'bg-black/30 border-white/10'}`}>
+            <button onClick={() => setSeerMode('player')} className={`rounded px-2 py-1.5 text-sm border ${seerMode === 'player' ? 'bg-[#e4234b] text-[#011735]' : 'bg-black/30 border-white/10'}`}>
               One player
             </button>
-            <button onClick={() => setSeerMode('center')} className={`rounded px-2 py-1.5 text-sm border ${seerMode === 'center' ? 'bg-[#92a9e1] text-black' : 'bg-black/30 border-white/10'}`}>
+            <button onClick={() => setSeerMode('center')} className={`rounded px-2 py-1.5 text-sm border ${seerMode === 'center' ? 'bg-[#e4234b] text-[#011735]' : 'bg-black/30 border-white/10'}`}>
               Two center
             </button>
           </div>
@@ -1060,7 +1093,7 @@ function NightActions(props: {
                     setSel(p.peerId);
                     props.onAct({ kind: 'seer-player', targetId: p.peerId });
                   })}
-                  className={`rounded px-2 py-1.5 text-sm border ${sel === p.peerId ? 'bg-[#92a9e1] text-black' : 'bg-black/30 border-white/10'}`}
+                  className={`rounded px-2 py-1.5 text-sm border ${sel === p.peerId ? 'bg-[#e4234b] text-[#011735]' : 'bg-black/30 border-white/10'}`}
                 >
                   {p.name}
                 </button>
@@ -1088,7 +1121,7 @@ function NightActions(props: {
                 setSel(p.peerId);
                 props.onAct({ kind: 'robber', targetId: p.peerId });
               })}
-              className={`rounded px-2 py-1.5 text-sm border ${sel === p.peerId ? 'bg-[#92a9e1] text-black' : 'bg-black/30 border-white/10'}`}
+              className={`rounded px-2 py-1.5 text-sm border ${sel === p.peerId ? 'bg-[#e4234b] text-[#011735]' : 'bg-black/30 border-white/10'}`}
             >
               Rob {p.name}
             </button>
@@ -1116,7 +1149,7 @@ function NightActions(props: {
                   props.onAct({ kind: 'trouble', targetId: sel, secondId: p.peerId });
                   setSel2(p.peerId);
                 }}
-                className={`rounded px-2 py-1.5 text-sm border ${sel === p.peerId || sel2 === p.peerId ? 'bg-[#92a9e1] text-black' : 'bg-black/30 border-white/10'}`}
+                className={`rounded px-2 py-1.5 text-sm border ${sel === p.peerId || sel2 === p.peerId ? 'bg-[#e4234b] text-[#011735]' : 'bg-black/30 border-white/10'}`}
               >
                 {p.name}
               </button>
@@ -1203,7 +1236,7 @@ function ActionConfirm({
               : null;
   if (done === null) return null;
   return done ? (
-    <p className="text-xs text-[#92a9e1] flex items-center gap-1">
+    <p className="text-xs text-[#e4234b] flex items-center gap-1">
       <Check size={12} /> Locked in — change it any time before resolve.
     </p>
   ) : (
@@ -1227,7 +1260,7 @@ function CenterPick({
             buzz();
             onPick(i);
           }}
-          className={`rounded px-2 py-2 text-sm border ${picked === String(i) ? 'bg-[#92a9e1] text-black' : 'bg-black/30 border-white/10'}`}
+          className={`rounded px-2 py-2 text-sm border ${picked === String(i) ? 'bg-[#e4234b] text-[#011735]' : 'bg-black/30 border-white/10'}`}
         >
           Center {i + 1}
         </button>
@@ -1257,7 +1290,7 @@ function CenterPairPick({
         <button
           key={i}
           onClick={() => toggle(i)}
-          className={`rounded px-2 py-2 text-sm border ${picked.includes(String(i)) ? 'bg-[#92a9e1] text-black' : 'bg-black/30 border-white/10'}`}
+          className={`rounded px-2 py-2 text-sm border ${picked.includes(String(i)) ? 'bg-[#e4234b] text-[#011735]' : 'bg-black/30 border-white/10'}`}
         >
           Center {i + 1}
         </button>
