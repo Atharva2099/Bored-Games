@@ -14,14 +14,58 @@
 }
 
 [data-game='secret-hitler'] {
-  --bg: #3f5a62;
-  --panel: rgba(0, 0, 0, 0.28);
-  --accent: #fe8254;
-  --accent-ink: #3f5a62;
-  --lib: #2f6fed;
-  --lib-soft: #7aa5ff;
-  --fas: #d92038;
-  --fas-soft: #ff6b7a;
+  /* Cream-paper room: 凝脂 cream bg, 朱膘 orange accent, 春梅蓝 blue liberal. */
+  --bg: #f6f4e7;
+  --ink: #2b2118;
+  --panel: rgba(255, 255, 255, 0.55);
+  --accent: #f26838;
+  --accent-ink: #f6f4e7;
+  --lib: #0f95b0;
+  --lib-soft: #0e7e96;
+  --fas: #f26838;
+  --fas-soft: #c74e1d;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+/* Light-text utilities flipped to warm ink — scoped so One Night and
+   Judgement (and the landing) keep their dark-room whites. */
+[data-game='secret-hitler'] .text-white {
+  color: #2b2118;
+}
+[data-game='secret-hitler'] .text-white\/75 {
+  color: rgba(43, 33, 24, 0.8);
+}
+[data-game='secret-hitler'] .text-white\/70 {
+  color: rgba(43, 33, 24, 0.75);
+}
+[data-game='secret-hitler'] .text-white\/60 {
+  color: rgba(43, 33, 24, 0.62);
+}
+[data-game='secret-hitler'] .text-white\/50 {
+  color: rgba(43, 33, 24, 0.55);
+}
+[data-game='secret-hitler'] .text-white\/35 {
+  color: rgba(43, 33, 24, 0.45);
+}
+[data-game='secret-hitler'] .text-amber-200 {
+  color: #9a3412;
+}
+[data-game='secret-hitler'] .text-red-300 {
+  color: #c74e1d;
+}
+[data-game='secret-hitler'] .border-white\/10 {
+  border-color: rgba(43, 33, 24, 0.12);
+}
+[data-game='secret-hitler'] .border-white\/20 {
+  border-color: rgba(43, 33, 24, 0.25);
+}
+[data-game='secret-hitler'] .bg-black\/30 {
+  background-color: rgba(43, 33, 24, 0.07);
+}
+[data-game='secret-hitler'] .panel {
+  border-color: rgba(43, 33, 24, 0.14);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset;
 }
 
 [data-game='judgement'] {
@@ -68,17 +112,17 @@ body {
   padding: 0.4rem;
   text-align: center;
   border: 2px solid;
-  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.45), inset 0 0 0 4px rgba(254, 130, 84, 0.5);
+  box-shadow: inset 0 0 0 2px rgba(43, 33, 24, 0.25), inset 0 0 0 4px rgba(242, 104, 56, 0.45);
 }
 .sh-card-lib {
-  background: linear-gradient(160deg, #3d7bff 0%, #1e40af 70%, #172c66 100%);
-  border-color: #7aa5ff;
-  color: #eef3ff;
+  background: linear-gradient(160deg, #2aa9c4 0%, #0f95b0 70%, #0b6e83 100%);
+  border-color: #0f95b0;
+  color: #f2fbfd;
 }
 .sh-card-fas {
-  background: linear-gradient(160deg, #f02a44 0%, #a31226 70%, #5e0a16 100%);
-  border-color: #ff6b7a;
-  color: #fff0f0;
+  background: linear-gradient(160deg, #f26838 0%, #d9531f 70%, #b8451a 100%);
+  border-color: #f26838;
+  color: #fdf3ea;
 }
 .sh-card-label {
   font-family: 'Anton', Impact, sans-serif;
@@ -87,7 +131,7 @@ body {
   font-size: 1.5rem;
 }
 .sh-gold {
-  color: #fe8254;
+  color: #c74e1d;
 }
 /* Sharp vanta panels for in-room game screens. */
 .panel {
@@ -116,7 +160,7 @@ body {
 }
 
 [data-game='secret-hitler'] .btn-accent {
-  box-shadow: 0 0 24px rgba(254, 130, 84, 0.45);
+  box-shadow: 0 0 24px rgba(242, 104, 56, 0.45);
 }
 
 [data-game='judgement'] .btn-accent {

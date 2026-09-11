@@ -1051,8 +1051,8 @@ export default function SecretHitler({
                       onClick={() => act({ kind: 'vote', ja: true })}
                       className="rounded py-5 font-display text-3xl tracking-widest border-2"
                       style={myVote === true
-                        ? { background: 'linear-gradient(180deg,#3d7bff,#1e40af)', borderColor: '#7aa5ff', color: '#fff' }
-                        : { background: 'rgba(47,111,237,0.10)', borderColor: 'rgba(122,165,255,0.5)', color: '#7aa5ff' }}
+                        ? { background: 'linear-gradient(180deg,#2AA9C4,#0B6E83)', borderColor: '#0E7E96', color: '#fff' }
+                        : { background: 'rgba(15,149,176,0.12)', borderColor: 'rgba(15,149,176,0.55)', color: '#0E7E96' }}
                     >
                       JA!
                     </button>
@@ -1060,8 +1060,8 @@ export default function SecretHitler({
                       onClick={() => act({ kind: 'vote', ja: false })}
                       className="rounded py-5 font-display text-3xl tracking-widest border-2"
                       style={myVote === false
-                        ? { background: 'linear-gradient(180deg,#f02a44,#a31226)', borderColor: '#ff6b7a', color: '#fff' }
-                        : { background: 'rgba(217,32,56,0.10)', borderColor: 'rgba(255,107,122,0.5)', color: '#ff6b7a' }}
+                        ? { background: 'linear-gradient(180deg,#F26838,#B8451A)', borderColor: '#C74E1D', color: '#fff' }
+                        : { background: 'rgba(242,104,56,0.12)', borderColor: 'rgba(242,104,56,0.55)', color: '#C74E1D' }}
                     >
                       NEIN!
                     </button>
@@ -1161,12 +1161,12 @@ export default function SecretHitler({
               <div
                 className="panel cut text-center space-y-2"
                 style={sh.winner === 'liberals'
-                  ? { borderTop: '4px solid #2f6fed', background: 'linear-gradient(180deg, rgba(47,111,237,0.20), transparent)' }
-                  : { borderTop: '4px solid #d92038', background: 'linear-gradient(180deg, rgba(217,32,56,0.22), transparent)' }}
+                  ? { borderTop: '4px solid #0F95B0', background: 'linear-gradient(180deg, rgba(15,149,176,0.22), transparent)' }
+                  : { borderTop: '4px solid #F26838', background: 'linear-gradient(180deg, rgba(242,104,56,0.24), transparent)' }}
               >
                 <div
                   className="font-display text-4xl uppercase"
-                  style={{ color: sh.winner === 'liberals' ? '#7aa5ff' : '#ff6b7a' }}
+                  style={{ color: sh.winner === 'liberals' ? '#0E7E96' : '#C74E1D' }}
                 >
                   {sh.winner} win!
                 </div>
@@ -1183,8 +1183,8 @@ export default function SecretHitler({
           {/* tracks */}
           <div className="panel cut space-y-2">
             <div className="flex items-center justify-between">
-              <span className="font-display text-lg tracking-widest" style={{ color: '#7aa5ff' }}>LIBERAL {sh.libTrack}/5</span>
-              <span className="font-display text-lg tracking-widest" style={{ color: '#ff6b7a' }}>{sh.fasTrack}/6 FASCIST</span>
+              <span className="font-display text-lg tracking-widest" style={{ color: '#0E7E96' }}>LIBERAL {sh.libTrack}/5</span>
+              <span className="font-display text-lg tracking-widest" style={{ color: '#C74E1D' }}>{sh.fasTrack}/6 FASCIST</span>
             </div>
             <div className="grid grid-cols-3 gap-2 lg:flex lg:gap-1">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -1192,8 +1192,8 @@ export default function SecretHitler({
                   key={i}
                   className="aspect-[2/3] w-full min-w-0 overflow-hidden rounded-sm border flex items-center justify-center lg:aspect-auto lg:h-14 lg:flex-1"
                   style={i < sh.libTrack
-                    ? { background: '#eef3ff', borderColor: '#7aa5ff' }
-                    : { background: 'rgba(122,165,255,0.08)', borderColor: 'rgba(122,165,255,0.35)' }}
+                    ? { background: '#E7F4F7', borderColor: '#0E7E96' }
+                    : { background: 'rgba(15,149,176,0.08)', borderColor: 'rgba(15,149,176,0.35)' }}
                 >
                   {i < sh.libTrack && (
                     <img src={policyLiberal} alt="Liberal policy enacted" className="h-full w-full object-contain" draggable={false} />
@@ -1210,8 +1210,8 @@ export default function SecretHitler({
                     key={i}
                     className="aspect-[2/3] w-full min-w-0 overflow-hidden rounded-sm border flex flex-col items-center justify-center gap-1 lg:aspect-auto lg:h-24 lg:flex-1"
                     style={filled
-                      ? { background: '#fff0f0', borderColor: '#ff6b7a' }
-                      : { background: 'rgba(255,107,122,0.07)', borderColor: 'rgba(255,107,122,0.35)' }}
+                      ? { background: '#FDEEE4', borderColor: '#C74E1D' }
+                      : { background: 'rgba(242,104,56,0.08)', borderColor: 'rgba(242,104,56,0.35)' }}
                   >
                     {filled ? (
                       <img src={policyFascist} alt="Fascist policy enacted" className="h-full w-full object-contain" draggable={false} />
@@ -1236,7 +1236,7 @@ export default function SecretHitler({
                     key={i}
                     className="h-3 w-3 rounded-full border"
                     style={i < sh.tracker
-                      ? { background: '#fe8254', borderColor: '#fe8254' }
+                      ? { background: '#F26838', borderColor: '#F26838' }
                       : { borderColor: 'rgba(201,162,39,0.4)' }}
                   />
                 ))}
@@ -1252,9 +1252,9 @@ export default function SecretHitler({
                   const c = shRoleCounts(sh.players.length);
                   return (
                     <>
-                      <span style={{ color: '#7aa5ff' }}>{c.liberals} Liberal</span>
+                      <span style={{ color: '#0E7E96' }}>{c.liberals} Liberal</span>
                       {' · '}
-                      <span style={{ color: '#ff6b7a' }}>{c.fascists - 1} Fascist · 1 Hitler</span>
+                      <span style={{ color: '#C74E1D' }}>{c.fascists - 1} Fascist · 1 Hitler</span>
                       {' · '}
                     </>
                   );
@@ -1278,12 +1278,12 @@ export default function SecretHitler({
         <div
           className="panel cut"
           style={myRole ? {
-            borderLeft: `4px solid ${myRole === 'liberal' ? '#2f6fed' : '#d92038'}`,
+            borderLeft: `4px solid ${myRole === 'liberal' ? '#0F95B0' : '#F26838'}`,
             background: myRole === 'liberal'
-              ? 'linear-gradient(150deg, rgba(47,111,237,0.22), rgba(11,14,26,0.6))'
+              ? 'linear-gradient(150deg, rgba(15,149,176,0.22), transparent)'
               : myRole === 'hitler'
-                ? 'linear-gradient(150deg, rgba(217,32,56,0.28), rgba(20,4,8,0.7))'
-                : 'linear-gradient(150deg, rgba(217,32,56,0.20), rgba(11,14,26,0.6))',
+                ? 'linear-gradient(150deg, rgba(242,104,56,0.28), transparent)'
+                : 'linear-gradient(150deg, rgba(242,104,56,0.20), transparent)',
           } : undefined}
         >
           <button onClick={() => setRoleOpen((v) => !v)} className="w-full text-left">
@@ -1292,7 +1292,7 @@ export default function SecretHitler({
               {myRole ? (
                 <>
                   {myRole === 'hitler' && <Crown size={22} className="sh-gold" />}
-                  <span style={{ color: myRole === 'liberal' ? '#7aa5ff' : '#ff6b7a' }}>
+                  <span style={{ color: myRole === 'liberal' ? '#0E7E96' : '#C74E1D' }}>
                     {ROLE_LABEL[myRole]}
                   </span>
                 </>
@@ -1350,15 +1350,15 @@ export default function SecretHitler({
 /** Sticky one-line score strip for phones — the full board is far too tall to pin. */
 function MiniTrack({ sh }: { sh: SHPublic }) {
   return (
-    <div className="lg:hidden sticky top-0 z-20 -mx-3 flex items-center gap-2 border-b border-white/10 bg-[#3f5a62]/95 px-3 py-1.5 backdrop-blur">
+    <div className="lg:hidden sticky top-0 z-20 -mx-3 flex items-center gap-2 border-b border-white/10 bg-[#F6F4E7]/95 px-3 py-1.5 backdrop-blur">
       <div className="flex flex-1 gap-0.5">
         {Array.from({ length: 5 }).map((_, i) => (
           <span
             key={i}
             className="h-2.5 flex-1 rounded-sm"
             style={i < sh.libTrack
-              ? { background: '#3d7bff' }
-              : { background: 'rgba(122,165,255,0.18)' }}
+              ? { background: '#2AA9C4' }
+              : { background: 'rgba(15,149,176,0.18)' }}
           />
         ))}
       </div>
@@ -1368,8 +1368,8 @@ function MiniTrack({ sh }: { sh: SHPublic }) {
             key={i}
             className="h-2.5 flex-1 rounded-sm"
             style={i < sh.fasTrack
-              ? { background: '#f02a44' }
-              : { background: 'rgba(255,107,122,0.18)' }}
+              ? { background: '#F26838' }
+              : { background: 'rgba(242,104,56,0.18)' }}
           />
         ))}
       </div>
@@ -1437,12 +1437,12 @@ function GameStatus({
   }
   return (
     <div key={sh.phase + String(sh.presidentId) + String(sh.chancellorId)} className="phase-enter">
-      <div className="text-xs font-bold uppercase tracking-[0.25em]" style={{ color: '#fe8254' }}>
+      <div className="text-xs font-bold uppercase tracking-[0.25em]" style={{ color: '#F26838' }}>
         {kicker}
       </div>
       <h2
         className="font-display uppercase leading-[1.02]"
-        style={{ fontSize: 'clamp(1.9rem, 8vw, 3rem)', color: '#fff' }}
+        style={{ fontSize: 'clamp(1.9rem, 8vw, 3rem)', color: '#2B2118' }}
       >
         {headline}
       </h2>
