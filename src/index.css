@@ -11,6 +11,10 @@
   --panel: rgba(146, 169, 225, 0.08);
   --accent: #92a9e1;
   --accent-ink: #000;
+  --avatar-ring: #92a9e1;
+  --avatar-bg: rgba(146, 169, 225, 0.08);
+  --avatar-bot: #c084fc;
+  --avatar-bot-bg: rgba(192, 132, 252, 0.1);
 }
 
 [data-game='secret-hitler'] {
@@ -24,6 +28,10 @@
   --lib-soft: #0e7e96;
   --fas: #f26838;
   --fas-soft: #c74e1d;
+  --avatar-ring: #0f95b0;
+  --avatar-bg: rgba(15, 149, 176, 0.1);
+  --avatar-bot: #f26838;
+  --avatar-bot-bg: rgba(242, 104, 56, 0.1);
   background: var(--bg);
   color: var(--ink);
 }
@@ -32,6 +40,9 @@
    Judgement (and the landing) keep their dark-room whites. */
 [data-game='secret-hitler'] .text-white {
   color: #2b2118;
+}
+[data-game='secret-hitler'] .text-white\/80 {
+  color: rgba(43, 33, 24, 0.85);
 }
 [data-game='secret-hitler'] .text-white\/75 {
   color: rgba(43, 33, 24, 0.8);
@@ -45,23 +56,68 @@
 [data-game='secret-hitler'] .text-white\/50 {
   color: rgba(43, 33, 24, 0.55);
 }
+[data-game='secret-hitler'] .text-white\/40 {
+  color: rgba(43, 33, 24, 0.5);
+}
 [data-game='secret-hitler'] .text-white\/35 {
   color: rgba(43, 33, 24, 0.45);
 }
+[data-game='secret-hitler'] .text-white\/30 {
+  color: rgba(43, 33, 24, 0.4);
+}
+[data-game='secret-hitler'] .text-white\/25 {
+  color: rgba(43, 33, 24, 0.35);
+}
 [data-game='secret-hitler'] .text-amber-200 {
+  color: #9a3412;
+}
+[data-game='secret-hitler'] .text-amber-200\/80 {
+  color: rgba(154, 52, 18, 0.85);
+}
+[data-game='secret-hitler'] .text-amber-300\/70 {
   color: #9a3412;
 }
 [data-game='secret-hitler'] .text-red-300 {
   color: #c74e1d;
 }
+[data-game='secret-hitler'] .text-purple-300\/80 {
+  color: #c74e1d;
+}
+[data-game='secret-hitler'] .text-purple-200\/90 {
+  color: #0e7e96;
+}
+[data-game='secret-hitler'] .border-purple-300\/40 {
+  border-color: rgba(15, 149, 176, 0.5);
+}
 [data-game='secret-hitler'] .border-white\/10 {
   border-color: rgba(43, 33, 24, 0.12);
+}
+[data-game='secret-hitler'] .border-white\/15 {
+  border-color: rgba(43, 33, 24, 0.2);
 }
 [data-game='secret-hitler'] .border-white\/20 {
   border-color: rgba(43, 33, 24, 0.25);
 }
+[data-game='secret-hitler'] .border-white\/30 {
+  border-color: rgba(43, 33, 24, 0.3);
+}
 [data-game='secret-hitler'] .bg-black\/30 {
   background-color: rgba(43, 33, 24, 0.07);
+}
+/* dark chips (bot × badge) stay dark — keep cream text on them */
+[data-game='secret-hitler'] button.bg-black {
+  color: #f6f4e7;
+  border-color: rgba(246, 244, 231, 0.45);
+}
+/* disabled primary action reads as a tinted waiting state, not dead gray */
+[data-game='secret-hitler'] .btn-accent:disabled {
+  background: rgba(15, 149, 176, 0.14);
+  color: #0e7e96;
+  box-shadow: none;
+}
+[data-game='judgement'] {
+  --avatar-ring: #34d399;
+  --avatar-bg: rgba(52, 211, 153, 0.1);
 }
 [data-game='secret-hitler'] .panel {
   border-color: rgba(43, 33, 24, 0.14);

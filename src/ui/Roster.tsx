@@ -33,10 +33,10 @@ export function AvatarGrid({
                 className="h-14 w-14 rounded-full border-2 flex items-center justify-center"
                 style={
                   p.bot
-                    ? { borderColor: '#c084fc', color: '#c084fc', background: 'rgba(192,132,252,0.10)' }
+                    ? { borderColor: 'var(--avatar-bot, #c084fc)', color: 'var(--avatar-bot, #c084fc)', background: 'var(--avatar-bot-bg, rgba(192,132,252,0.10))' }
                     : offline
                       ? { borderColor: 'rgba(252,211,77,0.7)', color: '#fcd34d' }
-                      : { borderColor: '#92a9e1', color: '#92a9e1', background: 'rgba(146,169,225,0.08)' }
+                      : { borderColor: 'var(--avatar-ring, #92a9e1)', color: 'var(--avatar-ring, #92a9e1)', background: 'var(--avatar-bg, rgba(146,169,225,0.08))' }
                 }
               >
                 {p.bot ? (
