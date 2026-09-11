@@ -29,6 +29,19 @@
   --panel: rgba(52, 211, 153, 0.08);
   --accent: #34d399;
   --accent-ink: #06281f;
+  font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+}
+
+[data-game='judgement'] .font-display {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+}
+
+[data-game='judgement'] .font-mono {
+  font-family: 'Outfit', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 body {
