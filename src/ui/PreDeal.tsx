@@ -34,9 +34,10 @@ export function PreDeal({
 }) {
   const n = roster.length;
   const ready = n >= min && n <= max;
+  const theme = game === 'sh' ? 'secret-hitler' : game === 'judgement' ? 'judgement' : 'one-night';
   return (
     <div
-      data-game={game === 'sh' ? 'secret-hitler' : 'one-night'}
+      data-game={theme}
       className="space-y-3"
     >
       <InvitePanel roomCode={roomCode} game={game} />

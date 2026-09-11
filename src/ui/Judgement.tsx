@@ -21,6 +21,7 @@ import {
 import type { Player } from '../net/presence';
 import type { JUDActMsg, JUDHandMsg, JUDPublic, RoomHandle } from '../net/transport';
 import { CardBack, CardFace } from './PlayingCards';
+import { PreDeal } from './PreDeal';
 
 function getClient(): string {
   try {
@@ -90,7 +91,6 @@ function botCard(hand: Card[], leadSuit: Suit | null, trick: { peerId: string; c
 export default function Judgement({
   handle,
   roomCode,
-  name,
   isHost,
   initialRoster,
   onExit,
@@ -170,12 +170,20 @@ export default function Judgement({
     return [...seats.slice(i), ...seats.slice(0, i)];
   };
 
-  const startRound = (roundIndex: number, keepScores: Record<string, number>, history: JUDPublic['history'], players: Player[]) => {
+  const startRound = (roundIndex: number, keepScores: Record<string, number>, history: JUDPublic['history'], players: Player[]): boolean => {
     const seats = players.map((p) => p.peerId);
     const handSize = handSizeForRound(roundIndex);
+    if (seats.length < 3 || seats.length > 8 || seats.length * handSize > 52)
+      return false;
     const trump = trumpForRound(roundIndex);
     const order = bidOrderForRound(seats, roundIndex);
-    handsRef.current = dealHands(seats, handSize);
+    let deck: Record<string, Card[]>;
+    try {
+      deck = dealHands(seats, handSize);
+    } catch {
+      return false;
+    }
+    handsRef.current = deck;
     const tricksWon: Record<string, number> = {};
     seats.forEach((s) => {
       tricksWon[s] = 0;
@@ -198,7 +206,7 @@ export default function Judgement({
       winners: [],
       log: [
         ...(judRef.current?.log ?? []),
-        `Round ${roundIndex + 1}/10 — ${handSize} card${handSize === 1 ? '' : 's'}, trump: ${trump ? SUIT_NAME[trump] : 'No Trump'}. ${nameOf(order[0])} bids first.`,
+        `Round ${roundIndex + 1}/10 — ${handSize} card${handSize === 1 ? '' : 's'}, trump: ${trump ? SUIT_NAME[trump] : 'No Trump'}. ${players.find((p) => p.peerId === order[0])?.name ?? '?'} bids first.`,
       ].slice(-60),
     };
     judRef.current = next;
@@ -214,6 +222,38 @@ export default function Judgement({
       /* ignore */
     }
     maybeBot(next);
+    return true;
+  };
+
+  /** Seat a fresh table from the given (live) roster. Host only. */
+  const dealTable = (roster: Player[]): boolean => {
+    if (roster.length < 3 || roster.length > 8) return false;
+    if (roster.length * handSizeForRound(0) > 52) return false;
+    const players = roster.map((p) => ({ ...p, alive: true, online: true }));
+    const scores: Record<string, number> = {};
+    players.forEach((p) => {
+      scores[p.peerId] = 0;
+    });
+    try {
+      localStorage.removeItem(`bg-judhand-${roomCode}`);
+    } catch {
+      /* ignore */
+    }
+    setHand([]);
+    return startRound(0, scores, [], players);
+  };
+
+  const seatLiveTable = (): void => {
+    const roster = liveRoster.current;
+    if (roster.length * handSizeForRound(0) > 52) {
+      alert(
+        `Not enough cards: ${roster.length} players × 10 cards needs ${roster.length * 10} cards — a deck has 52. Seat ${Math.floor(52 / 10)} or fewer for the full 10-round schedule.`,
+      );
+      return;
+    }
+    if (!dealTable(roster)) {
+      alert('Judgement needs 3-8 players to seat the table.');
+    }
   };
 
   const isBot = (peerId: string | null): boolean => {
@@ -357,7 +397,20 @@ export default function Judgement({
     }
   };
 
+  /** Live lobby roster (prop updates on every App render). Read at seat
+   * time — never a mount-time snapshot — so late joiners get seated. */
+  const liveRoster = useRef(initialRoster);
+  liveRoster.current = initialRoster;
+
   const initGame = () => {
+    if (restoreSaved()) return;
+    // No save: only auto-deal if the live room already seats a full table.
+    // Otherwise idle on the pre-deal screen until the host seats manually.
+    dealTable(liveRoster.current);
+  };
+
+  /** Host refresh recovery. Returns true when a save was restored. */
+  const restoreSaved = (): boolean => {
     // host refresh recovery
     try {
       const saved = JSON.parse(localStorage.getItem(`bg-judhost-${roomCode}`) ?? 'null');
@@ -389,35 +442,13 @@ export default function Judgement({
         dealTo(selfId, (saved.jud as JUDPublic).roundIndex);
         sendersRef.current?.pub(saved.jud as unknown as Record<string, unknown>);
         maybeBot(saved.jud as JUDPublic);
-        return;
+        return true;
       }
+      return false;
     } catch {
       /* fresh game */
+      return false;
     }
-    const players = initialRoster.map((p) => ({ ...p, alive: true, online: true }));
-    const scores: Record<string, number> = {};
-    players.forEach((p) => {
-      scores[p.peerId] = 0;
-    });
-    judRef.current = {
-      phase: 'bid',
-      players,
-      roundIndex: 0,
-      handSize: 0,
-      trump: null,
-      order: [],
-      bids: {},
-      tricksWon: {},
-      scores,
-      history: [],
-      turnPeer: null,
-      leaderPeer: null,
-      trickIndex: 0,
-      currentTrick: [],
-      winners: [],
-      log: ['Judgement table opening…'],
-    };
-    startRound(0, scores, [], players);
   };
 
   // ---------- wiring ----------
@@ -489,19 +520,22 @@ export default function Judgement({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jud?.turnPeer, jud?.phase, jud?.trickIndex]);
 
+  // ---------- render ----------
   if (!jud) {
     return (
-      <div className="panel cut space-y-2" data-game="judgement">
-        <p className="text-sm text-white/70">Connecting to the Judgement table… ({name})</p>
-        {!isHost && (
-          <button
-            onClick={() => sendersRef.current?.act({ kind: 'sync', client: getClient() })}
-            className="rounded-lg border border-white/20 px-3 py-1.5 text-sm"
-          >
-            Retry join
-          </button>
-        )}
-      </div>
+      <PreDeal
+        game="judgement"
+        title="Judgement"
+        roomCode={roomCode}
+        roster={liveRoster.current}
+        min={3}
+        max={8}
+        isHost={isHost}
+        onSeat={seatLiveTable}
+        onExit={onExit}
+        onAddBot={onAddBot}
+        onRemoveBot={onRemoveBot}
+      />
     );
   }
 
@@ -699,7 +733,18 @@ export default function Judgement({
             ))}
           </div>
           {isHost && (
-            <button onClick={() => initGame()} className="btn-accent">
+            <button
+              onClick={() => {
+                try {
+                  localStorage.removeItem(`bg-judhost-${roomCode}`);
+                } catch {
+                  /* ignore */
+                }
+                handsRef.current = {};
+                seatLiveTable();
+              }}
+              className="btn-accent"
+            >
               Play again
             </button>
           )}
@@ -717,18 +762,6 @@ export default function Judgement({
       </div>
 
       <div className="flex gap-2">
-        {isHost && jud.phase === 'bid' && jud.roundIndex === 0 && Object.keys(jud.bids).length === 0 && (
-          <>
-            <button onClick={onAddBot} className="rounded border border-dashed border-white/30 px-3 py-1.5 text-xs">
-              + Add bot
-            </button>
-            {seats.filter((p) => p.bot).map((p) => (
-              <button key={p.peerId} onClick={() => onRemoveBot(p.peerId)} className="rounded border border-white/20 px-2 py-1.5 text-xs">
-                Remove {p.name}
-              </button>
-            ))}
-          </>
-        )}
         <button onClick={onExit} className="ml-auto rounded border border-white/20 px-3 py-1.5 text-xs text-white/70">
           Back to lobby
         </button>
