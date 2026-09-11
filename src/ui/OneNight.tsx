@@ -875,6 +875,7 @@ export default function OneNight({
             flags={onu.night}
             isHost={isHost}
             dayCount={1}
+            pool={onu.pool}
             onAct={(m) => act(m)}
             onResolve={resolveNightHost}
             onNarrate={() => void narratePool()}
@@ -1026,6 +1027,7 @@ function NightActions(props: {
   flags: ONUPublic['night'];
   isHost: boolean;
   dayCount: number;
+  pool: import('../game/one-night/logic').ONURole[];
   onAct: (m: Omit<ONUActMsg, 'client'>) => void;
   onResolve: () => void;
   onNarrate: () => void;
@@ -1034,6 +1036,11 @@ function NightActions(props: {
   const [sel, setSel] = useState<string | null>(null);
   const [sel2, setSel2] = useState<string | null>(null);
   const [seerMode, setSeerMode] = useState<'player' | 'center'>('player');
+  const [wakeStep, setWakeStep] = useState(0);
+  // fresh night → stepper back to the first call
+  useEffect(() => {
+    setWakeStep(0);
+  }, [props.dayCount]);
   if (!alive) return <div className="text-sm text-white/60">Out — waiting for dawn…</div>;
   if (!role) return <div className="text-sm text-white/60">Waiting for card…</div>;
 
@@ -1175,15 +1182,75 @@ function NightActions(props: {
       <ActionConfirm flags={props.flags} role={role} />
 
       {props.isHost && (
-        <div className="grid grid-cols-2 gap-2">
-          <button onClick={props.onNarrate} className="rounded border border-white/20 py-2 text-sm font-semibold">
-            Narrate night
-          </button>
-          <button onClick={props.onResolve} className="rounded bg-amber-300 text-black font-bold py-2 text-sm">
-            Resolve → Day
-          </button>
+        <div className="space-y-2 pt-1">
+          <HostNightStepper pool={props.pool} step={wakeStep} onNext={() => setWakeStep((s) => s + 1)} onResolve={props.onResolve} onNarrate={props.onNarrate} />
         </div>
       )}
+    </div>
+  );
+}
+
+/** Official call order for the host's stepped night ceremony. */
+const CALL_ORDER: { role: import('../game/one-night/logic').ONURole; cue: string }[] = [
+  { role: 'werewolf', cue: 'Werewolves, open your eyes and look for the other werewolf.' },
+  { role: 'minion', cue: 'Minion, open your eyes. Werewolves, stick out your thumb.' },
+  { role: 'mason', cue: 'Masons, open your eyes and look for the other mason.' },
+  { role: 'seer', cue: 'Seer, open your eyes — one player or two center cards.' },
+  { role: 'robber', cue: 'Robber, open your eyes — take a card and look at it.' },
+  { role: 'troublemaker', cue: 'Troublemaker, open your eyes — switch two others without looking.' },
+  { role: 'drunk', cue: 'Drunk, open your eyes — trade your card with a center card.' },
+  { role: 'insomniac', cue: 'Insomniac, open your eyes and look at your card.' },
+];
+
+function HostNightStepper({
+  pool,
+  step,
+  onNext,
+  onResolve,
+  onNarrate,
+}: {
+  pool: import('../game/one-night/logic').ONURole[];
+  step: number;
+  onNext: () => void;
+  onResolve: () => void;
+  onNarrate: () => void;
+}) {
+  const calls = CALL_ORDER.filter((c) => pool.includes(c.role));
+  const done = step >= calls.length;
+  const dots = (i: number) => (
+    <span
+      key={i}
+      aria-hidden
+      className={`h-1.5 w-4 rounded-full ${i < step ? 'bg-[#e4234b]' : i === step && !done ? 'bg-white/70' : 'bg-white/15'}`}
+    />
+  );
+  // constant frame: one full-width, same-height button every step + dots
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-center gap-1.5">{calls.map((_, i) => dots(i))}</div>
+      <span className="block text-center text-[11px] text-white/45">
+        {done ? `Night called — ${calls.length}/${calls.length} wakes done` : `Wake ${step + 1}/${calls.length} · ${LABEL[calls[step].role]}`}
+      </span>
+      <button
+        onClick={() => {
+          buzz();
+          if (done) {
+            onResolve();
+            return;
+          }
+          speakCue(calls[step].cue);
+          onNext();
+        }}
+        className={`w-full rounded py-2 text-sm font-bold ${done ? 'bg-[#e4234b] text-[#011735]' : 'border border-white/20 text-white'}`}
+      >
+        {done ? 'Resolve → Day' : `Next — wake ${LABEL[calls[step].role]}`}
+      </button>
+      <button
+        onClick={onNarrate}
+        className="block w-full text-center text-[11px] text-white/40 underline"
+      >
+        Or narrate the whole night automatically
+      </button>
     </div>
   );
 }
