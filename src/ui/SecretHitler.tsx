@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Eye, Gavel, Repeat, ScrollText, Search, Skull, Users, Vote } from 'lucide-react';
+import { Eye, Gavel, ScrollText, Users, Vote } from 'lucide-react';
 import {
   assignSHRoles,
   buildPolicyDeck,
@@ -10,7 +10,6 @@ import {
   powerForSlot,
   resolveSHElection,
   shKnowledge,
-  shRoleCounts,
   vetoUnlocked,
   type Policy,
   type Power,
@@ -29,6 +28,7 @@ import { InvitePanel } from './Invite';
 import { PreDeal } from './PreDeal';
 import { RosterList } from './Roster';
 import { BallotStamp, Modal, ModalConfirm, PickCard } from './Modal';
+import { SHBoard } from './ShBoard';
 
 const ROLE_BLURB: Record<SHRole, string> = {
   liberal: 'Pass liberal policies. Find your allies — talk is your weapon.',
@@ -1076,6 +1076,7 @@ export default function SecretHitler({
     <div data-game="secret-hitler" className="space-y-3 lg:space-y-4">
       <MiniTrack sh={sh} />
       <GameStatus sh={sh} selfId={selfId} nameOf={nameOf} />
+      <SHBoard sh={sh} />
 
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-5 lg:items-start space-y-3 lg:space-y-0">
         {/* left column: on a phone the action comes first so the cards sit in
@@ -1331,96 +1332,6 @@ export default function SecretHitler({
             )}
           </div>
           </div>
-          <div className="order-2 lg:order-1">
-          {/* tracks */}
-          <div className="panel cut space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-display text-lg tracking-widest" style={{ color: '#0E7E96' }}>LIBERAL {sh.libTrack}/5</span>
-              <span className="font-display text-lg tracking-widest" style={{ color: '#C74E1D' }}>{sh.fasTrack}/6 FASCIST</span>
-            </div>
-            <div className="grid grid-cols-5 gap-2 lg:flex lg:gap-1">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <span
-                  key={i}
-                  className="aspect-[2/3] w-full min-w-0 overflow-hidden rounded-sm border flex items-center justify-center lg:aspect-auto lg:h-20 lg:flex-1"
-                  style={i < sh.libTrack
-                    ? { background: '#E7F4F7', borderColor: '#0E7E96' }
-                    : { background: 'rgba(15,149,176,0.08)', borderColor: 'rgba(15,149,176,0.35)' }}
-                >
-                  {i < sh.libTrack && (
-                    <img src={policyLiberal} alt="Liberal policy enacted" className="h-full w-full object-contain" draggable={false} />
-                  )}
-                </span>
-              ))}
-            </div>
-            <div className="grid grid-cols-6 gap-2 lg:flex lg:gap-1">
-              {Array.from({ length: 6 }).map((_, i) => {
-                const filled = i < sh.fasTrack;
-                const power = powerForSlot(sh.players.length, i + 1);
-                return (
-                  <span
-                    key={i}
-                    className="aspect-[2/3] w-full min-w-0 overflow-hidden rounded-sm border flex flex-col items-center justify-center gap-1 lg:aspect-auto lg:h-20 lg:flex-1"
-                    style={filled
-                      ? { background: '#FDEEE4', borderColor: '#C74E1D' }
-                      : { background: 'rgba(242,104,56,0.08)', borderColor: 'rgba(242,104,56,0.35)' }}
-                  >
-                    {filled ? (
-                      <img src={policyFascist} alt="Fascist policy enacted" className="h-full w-full object-contain" draggable={false} />
-                    ) : (
-                      <>
-                        <span className="text-white/35" style={{ fontSize: 12, fontWeight: 700 }}>{i + 1}</span>
-                        <PowerGlyph power={power} />
-                        {i === 4 && (
-                          <span className="sh-gold" style={{ fontSize: 14, fontWeight: 800, letterSpacing: '0.08em' }}>VETO</span>
-                        )}
-                      </>
-                    )}
-                  </span>
-                );
-              })}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs uppercase text-white/50">Election tracker</span>
-              <div className="flex gap-1">
-                {[0, 1, 2].map((i) => (
-                  <span
-                    key={i}
-                    className="h-3 w-3 rounded-full border"
-                    style={i < sh.tracker
-                      ? { background: '#F26838', borderColor: '#F26838' }
-                      : { borderColor: 'rgba(201,162,39,0.4)' }}
-                  />
-                ))}
-              </div>
-              <span className="text-xs text-white/50 ml-auto">
-                Deck {sh.drawCount} · Discard {sh.discCount}
-                {vetoUnlocked(sh.fasTrack) ? ' · VETO LIVE' : ''}
-              </span>
-            </div>
-            <div className="text-xs text-white/50">
-              {(() => {
-                try {
-                  const c = shRoleCounts(sh.players.length);
-                  return (
-                    <>
-                      <span style={{ color: '#0E7E96' }}>{c.liberals} Liberal</span>
-                      {' · '}
-                      <span style={{ color: '#C74E1D' }}>{c.fascists - 1} Fascist · 1 Hitler</span>
-                      {' · '}
-                    </>
-                  );
-                } catch {
-                  return null;
-                }
-              })()}
-              Deck holds 6 Liberal + 11 Fascist policies
-            </div>
-            {sh.pendingPower && (
-              <div className="text-xs sh-gold font-bold uppercase">Power: {sh.pendingPower}</div>
-            )}
-          </div>
-          </div>
         </div>
 
         {/* right rail: reference material, sticky beside the action on desktop */}
@@ -1625,12 +1536,6 @@ function PolicyCard({ policy, dim }: { policy: Policy; dim?: boolean }) {
       />
     </div>
   );
-}
-
-function PowerGlyph({ power }: { power: Power | null }) {
-  if (!power) return null;
-  const Icon = power === 'investigate' ? Search : power === 'special' ? Repeat : power === 'peek' ? Eye : Skull;
-  return <Icon size={32} className="sh-gold" strokeWidth={1.8} />;
 }
 
 function PowerPanel(props: {
