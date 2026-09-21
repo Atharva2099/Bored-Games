@@ -73,6 +73,8 @@ export default function Doomed({
   });
 
   const stateRef = useRef<DoomedState | null>(null);
+  const pubRef = useRef<DoomedPublic | null>(null);
+  pubRef.current = pub;
   const isHostRef = useRef(isHost);
   isHostRef.current = isHost;
   const liveRoster = useRef<Player[]>(initialRoster);
@@ -147,7 +149,12 @@ export default function Doomed({
     const st = stateRef.current;
 
     if (msg.kind === 'sync') {
+      // Send directly to the requesting peer as well as broadcast
       syncState(st);
+      if (senderId && senderId !== selfId) {
+        sendersRef.current?.pub(st as unknown as Record<string, unknown>, senderId);
+      }
+      return;
     } else if (msg.kind === 'action' && msg.action) {
       executeAction(st, senderId, msg.action, msg.targetId);
       syncState(st);
@@ -204,12 +211,35 @@ export default function Doomed({
       act: (d, t) => void actAction.send(d as never, t ? { target: t } : undefined),
     };
 
+    // Heartbeat for host so late joiners/rejoiners get the latest state reliably
+    const beat = setInterval(() => {
+      const cur = stateRef.current;
+      if (isHostRef.current && cur) {
+        syncState(cur);
+      }
+    }, 4000);
+
     if (!isHost) {
       const t = setTimeout(() => {
         sendersRef.current?.act({ kind: 'sync', client: getClient() });
       }, 500);
-      return () => clearTimeout(t);
+      const retry = setInterval(() => {
+        if (!pubRef.current) {
+          sendersRef.current?.act({ kind: 'sync', client: getClient() });
+        } else {
+          clearInterval(retry);
+        }
+      }, 3000);
+      return () => {
+        clearTimeout(t);
+        clearInterval(retry);
+        clearInterval(beat);
+      };
     }
+
+    return () => {
+      clearInterval(beat);
+    };
   }, [handle, isHost]);
 
   useEffect(() => {
@@ -301,6 +331,9 @@ export default function Doomed({
     );
     stateRef.current = st;
     syncState(st);
+    setTimeout(() => {
+      syncState(st);
+    }, 500);
   };
 
   if (!pub) {
