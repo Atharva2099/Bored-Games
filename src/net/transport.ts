@@ -180,6 +180,8 @@ export interface ONUPublic {
   votes: Record<string, string>;
   /** clients ready during role phase */
   ready: string[];
+  /** clients ready to vote during day phase */
+  dayReady?: string[];
   /** night inputs landed (flags only, never targets) */
   night: { lone: boolean; seer: boolean; robber: boolean; trouble: boolean; drunk: boolean };
   died: string[];
@@ -212,6 +214,7 @@ export interface ONUActMsg {
   kind:
     | 'sync'
     | 'ready'
+    | 'day-ready'
     | 'lone'
     | 'seer-player'
     | 'seer-center'

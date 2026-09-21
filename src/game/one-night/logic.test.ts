@@ -22,13 +22,13 @@ describe('recommendedPool', () => {
     for (let n = 3; n <= 10; n++)
       expect(recommendedPool(n)).toHaveLength(n + 3);
   });
-  it('3p pool is the verified official basic setup', () => {
+  it('3p pool has werewolves and active roles', () => {
     const pool = recommendedPool(3);
     expect(pool.filter((r) => r === 'werewolf')).toHaveLength(2);
     expect(pool).toContain('seer');
     expect(pool).toContain('robber');
     expect(pool).toContain('troublemaker');
-    expect(pool).toContain('villager');
+    expect(pool).toContain('tanner');
   });
   it('rejects out-of-range tables', () => {
     expect(() => recommendedPool(2)).toThrow();

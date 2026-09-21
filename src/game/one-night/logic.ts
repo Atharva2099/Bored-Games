@@ -46,14 +46,14 @@ export function recommendedPool(totalPlayers: number): ONURole[] {
     'seer',
     'robber',
     'troublemaker',
-    'villager',
+    'tanner',
   ];
   const extra: Record<number, ONURole[]> = {
-    4: ['villager'],
-    5: ['villager', 'villager'],
-    6: ['villager', 'tanner', 'drunk'],
-    7: ['werewolf', 'tanner', 'drunk', 'hunter'],
-    8: ['werewolf', 'tanner', 'drunk', 'hunter', 'minion'],
+    4: ['drunk'],
+    5: ['drunk', 'hunter'],
+    6: ['drunk', 'hunter', 'minion'],
+    7: ['drunk', 'hunter', 'minion', 'insomniac'],
+    8: ['werewolf', 'drunk', 'hunter', 'minion', 'insomniac'],
     9: ['werewolf', 'drunk', 'hunter', 'minion', 'mason', 'mason'],
     10: ['werewolf', 'drunk', 'hunter', 'minion', 'mason', 'mason', 'insomniac'],
   };

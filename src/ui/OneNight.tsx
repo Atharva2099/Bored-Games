@@ -304,7 +304,26 @@ export default function OneNight({
     if (m.kind === 'ready' && cur.phase === 'role') {
       const voter = m.client || fromPeer;
       const ready = [...new Set([...cur.ready, voter])];
-      push({ ready });
+      const aliveClients = cur.players.filter((p) => p.alive).map((p) => p.bot ? p.peerId : (peerToClient.current[p.peerId] || p.peerId));
+      const allReady = aliveClients.every((c) => ready.includes(c) || c === clientId);
+      if (allReady) {
+        push({ ready, phase: 'night', log: [...cur.log, 'All players ready! Night falls. Close your eyes.'].slice(-50) });
+      } else {
+        push({ ready });
+      }
+      return;
+    }
+
+    if (m.kind === 'day-ready' && cur.phase === 'day') {
+      const voter = m.client || fromPeer;
+      const dayReady = [...new Set([...(cur.dayReady ?? []), voter])];
+      const aliveClients = cur.players.filter((p) => p.alive).map((p) => p.bot ? p.peerId : (peerToClient.current[p.peerId] || p.peerId));
+      const allReady = aliveClients.every((c) => dayReady.includes(c) || c === clientId);
+      if (allReady) {
+        push({ dayReady, phase: 'vote', log: [...cur.log, 'All players ready! Vote! Point at your suspect.'].slice(-50) });
+      } else {
+        push({ dayReady });
+      }
       return;
     }
 
@@ -721,6 +740,13 @@ export default function OneNight({
           return;
         }
       }
+      if (cur.phase === 'day') {
+        const missing = bots.filter((b) => !(cur.dayReady ?? []).includes(b.peerId));
+        if (missing.length > 0) {
+          say(missing[0].peerId, { kind: 'day-ready' });
+          return;
+        }
+      }
       if (cur.phase === 'night') {
         const inp = inputsRef.current;
         const ids = aliveIds;
@@ -800,67 +826,119 @@ export default function OneNight({
   const me = onu.players.find((p) => p.peerId === selfId) ?? null;
   const alive = me?.alive ?? true;
   const aliveIds = onu.players.filter((p) => p.alive).map((p) => p.peerId);
-  const readyCount = (onu.ready?.length ?? 0) + (isHost ? 1 : 0);
-  const amIReady = isHost || (onu.ready ?? []).includes(clientId);
+  const readyCount = (onu.ready?.length ?? 0);
+  const amIReady = (onu.ready ?? []).includes(clientId);
+  const dayReadyCount = (onu.dayReady?.length ?? 0);
+  const amIDayReady = (onu.dayReady ?? []).includes(clientId);
   const myVote = clientId ? onu.votes[clientId] : undefined;
   const votedCount = Object.keys(onu.votes).length;
 
   return (
     <div data-game="one-night" className="space-y-3 lg:space-y-4">
       <InvitePanel roomCode={roomCode} game="one-night" />
-      {/* role card */}
-      <div className="panel cut">
-        <div className="text-xs uppercase text-white/50">Your card</div>
-        <div className="font-display text-3xl">
-          {myRole ? (
-            <span className={myRole === 'werewolf' || myRole === 'minion' ? 'text-red-400' : 'text-white'}>
-              {LABEL[myRole]}
-            </span>
-          ) : (
-            '…waiting…'
+      {/* role card — central, prominent, and taking up maximum space */}
+      <div
+        className="rounded-3xl p-6 sm:p-8 text-center space-y-4 border transition-all"
+        style={{
+          background: myRole === 'werewolf' || myRole === 'minion'
+            ? 'linear-gradient(170deg, rgba(228, 35, 75, 0.25) 0%, rgba(1, 23, 53, 0.95) 100%)'
+            : myRole === 'tanner'
+              ? 'linear-gradient(170deg, rgba(245, 158, 11, 0.25) 0%, rgba(1, 23, 53, 0.95) 100%)'
+              : 'linear-gradient(170deg, rgba(59, 130, 246, 0.2) 0%, rgba(1, 23, 53, 0.95) 100%)',
+          borderColor: myRole === 'werewolf' || myRole === 'minion'
+            ? '#e4234b'
+            : myRole === 'tanner'
+              ? '#f59e0b'
+              : 'rgba(255, 255, 255, 0.25)',
+          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+        }}
+      >
+        <div className="text-xs uppercase tracking-[0.25em] font-bold text-white/50">
+          Your Secret Allegiance
+        </div>
+
+        <div className="py-2">
+          <div className="font-display text-5xl sm:text-6xl tracking-wide uppercase drop-shadow-[0_0_25px_rgba(255,255,255,0.2)]">
+            {myRole ? (
+              <span
+                className={
+                  myRole === 'werewolf' || myRole === 'minion'
+                    ? 'text-[#e4234b]'
+                    : myRole === 'tanner'
+                      ? 'text-amber-400'
+                      : 'text-white'
+                }
+              >
+                {LABEL[myRole]}
+              </span>
+            ) : (
+              '…dealing card…'
+            )}
+          </div>
+
+          {myRole && (
+            <p className="text-sm sm:text-base text-white/80 max-w-md mx-auto mt-2 leading-relaxed font-medium">
+              {BLURB[myRole]}
+            </p>
           )}
         </div>
-        {myRole && <p className="text-xs text-white/60 mt-1">{BLURB[myRole]}</p>}
+
         {kin.length > 0 && (
-          <p className="text-xs text-red-300 mt-1">
-            <Eye size={12} className="inline" /> {myRole === 'minion' ? 'Wolves' : 'You wake with'}: {kin.map((id) => onu.players.find((p) => p.peerId === id)?.name ?? '?').join(', ')}
-          </p>
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-500/15 border border-red-500/30 text-xs sm:text-sm text-red-200 font-semibold">
+            <Eye size={16} />
+            <span>
+              {myRole === 'minion' ? 'Wolves Revealed' : 'You Wake With'}:{' '}
+              {kin.map((id) => onu.players.find((p) => p.peerId === id)?.name ?? '?').join(', ')}
+            </span>
+          </div>
         )}
+
         {seen && (
-          <p className="text-xs text-amber-200 mt-1">
-            {seen.label}: {seen.cards.map((c) => LABEL[c]).join(', ')}
-          </p>
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/15 border border-amber-500/30 text-xs sm:text-sm text-amber-200 font-semibold">
+            <span>{seen.label}: {seen.cards.map((c) => LABEL[c]).join(', ')}</span>
+          </div>
         )}
-        {!alive && <p className="text-sm text-white/60 mt-1">Out of the game — watch only.</p>}
+
+        {!alive && (
+          <div className="text-xs text-red-400 font-bold uppercase tracking-wider">
+            Eliminated — watching the village
+          </div>
+        )}
       </div>
 
       <div key={onu.phase} className="phase-enter">
         {onu.phase === 'role' && (
-          <div className="panel cut space-y-2">
+          <div className="panel cut space-y-3">
             <p className="text-sm text-white/70">
-              Memorize your card, then mark ready. One night, one vote — no second chances.
+              Memorize your card, then confirm ready. When everyone is ready, night falls.
             </p>
-            <div className="text-xs text-white/60">{readyCount}/{aliveIds.length} ready</div>
-            {!isHost && alive && !amIReady && (
-              <button onClick={() => { buzz(); act({ kind: 'ready' }); }} className="btn-accent">
-                I&apos;m ready
+            <div className="flex items-center justify-between text-xs text-white/60 font-mono">
+              <span>{readyCount}/{aliveIds.length} players ready</span>
+              <span>{readyCount === aliveIds.length ? 'Starting night…' : 'Waiting for everyone to ready up'}</span>
+            </div>
+            {alive && !amIReady && (
+              <button onClick={() => { buzz(); act({ kind: 'ready' }); }} className="btn-accent py-3 font-bold text-base">
+                I am ready →
               </button>
             )}
-            {!isHost && alive && amIReady && (
-              <div className="text-sm text-white/60 flex items-center gap-1">
-                <Check size={14} /> Ready — waiting for night…
+            {alive && amIReady && (
+              <div className="py-2.5 px-4 rounded-xl bg-white/5 border border-white/10 text-sm text-emerald-300 flex items-center justify-center gap-2 font-semibold">
+                <Check size={16} /> Ready — waiting for other players…
               </div>
             )}
             {isHost && (
-              <button
-                onClick={() => {
-                  const cur = onuRef.current;
-                  if (cur) push({ phase: 'night', log: [...cur.log, 'Night falls. Everyone close your eyes.'].slice(-50) });
-                }}
-                className="btn-accent"
-              >
-                Start night
-              </button>
+              <div className="pt-2 border-t border-white/10 flex items-center justify-between">
+                <span className="text-xs text-white/40">Host Override</span>
+                <button
+                  onClick={() => {
+                    const cur = onuRef.current;
+                    if (cur) push({ phase: 'night', log: [...cur.log, 'Night falls. Everyone close your eyes.'].slice(-50) });
+                  }}
+                  className="text-xs text-white/60 hover:text-white underline"
+                >
+                  Force start night →
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -883,9 +961,9 @@ export default function OneNight({
         )}
 
         {onu.phase === 'day' && (
-          <div className="panel cut space-y-2">
+          <div className="panel cut space-y-3">
             <div className="font-semibold flex items-center gap-2">
-              <Sun size={16} /> Day — discuss, then the hunter points
+              <Sun size={16} /> Day — Discuss and uncover suspects
             </div>
             <div className="daybreak" />
             {myRole === 'hunter' && alive ? (
@@ -894,21 +972,41 @@ export default function OneNight({
                 selfId={selfId}
                 onPoint={(id) => act({ kind: 'hunter-point', targetId: id })}
               />
-            ) : (
-              <p className="text-sm text-white/60">
-                Talk it out. {isHost ? 'When ready, open the vote.' : 'Waiting for the host to open the vote…'}
-              </p>
-            )}
+            ) : null}
+
+            <div className="p-3 rounded-xl bg-white/5 border border-white/10 space-y-2">
+              <div className="flex items-center justify-between text-xs text-white/60 font-mono">
+                <span>{dayReadyCount}/{aliveIds.length} players ready to vote</span>
+                <span>{dayReadyCount === aliveIds.length ? 'Opening vote…' : 'Discuss freely'}</span>
+              </div>
+              {alive && !amIDayReady && (
+                <button
+                  onClick={() => { buzz(); act({ kind: 'day-ready' }); }}
+                  className="btn-accent py-2.5 font-bold text-sm w-full"
+                >
+                  Ready to Vote →
+                </button>
+              )}
+              {alive && amIDayReady && (
+                <div className="py-2 px-3 text-sm text-emerald-300 flex items-center justify-center gap-2 font-semibold">
+                  <Check size={16} /> Ready to vote — waiting for others to finish discussing…
+                </div>
+              )}
+            </div>
+
             {isHost && (
-              <button
-                onClick={() => {
-                  const cur = onuRef.current;
-                  if (cur) push({ phase: 'vote', log: [...cur.log, 'Vote! Point at your suspect.'].slice(-50) });
-                }}
-                className="w-full rounded bg-white text-black font-bold py-2"
-              >
-                Open vote
-              </button>
+              <div className="pt-2 border-t border-white/10 flex items-center justify-between">
+                <span className="text-xs text-white/40">Host Override</span>
+                <button
+                  onClick={() => {
+                    const cur = onuRef.current;
+                    if (cur) push({ phase: 'vote', log: [...cur.log, 'Vote! Point at your suspect.'].slice(-50) });
+                  }}
+                  className="text-xs text-white/60 hover:text-white underline"
+                >
+                  Force open vote →
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -1051,9 +1149,18 @@ function NightActions(props: {
   };
 
   return (
-    <div className="panel cut space-y-2">
-      <div className="font-semibold flex items-center gap-2">
-        <Moon size={16} className="moon-pulse" /> Night — {nightHint(role, props.loneWolf)}
+    <div
+      className="rounded-3xl p-6 sm:p-7 space-y-4 border transition-all mt-4"
+      style={{
+        background: 'linear-gradient(160deg, rgba(228, 35, 75, 0.12) 0%, rgba(1, 23, 53, 0.85) 100%)',
+        borderColor: 'rgba(228, 35, 75, 0.35)',
+        boxShadow: '0 15px 35px rgba(0, 0, 0, 0.5)',
+      }}
+    >
+      <div className="flex items-center justify-between border-b border-white/10 pb-3">
+        <div className="font-semibold text-base sm:text-lg flex items-center gap-2 text-white">
+          <Moon size={20} className="moon-pulse text-[#e4234b]" /> Night Directive — {nightHint(role, props.loneWolf)}
+        </div>
       </div>
 
       {role === 'werewolf' && (
