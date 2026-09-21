@@ -1,4 +1,4 @@
-export type GamePick = 'werewolf' | 'sh' | 'judgement';
+export type GamePick = 'werewolf' | 'sh' | 'judgement' | 'doomed';
 
 /** Brand mark that always leads home. */
 export function HomeLogo({ onHome, size = 30 }: { onHome: () => void; size?: number }) {
@@ -154,6 +154,35 @@ export function Landing({ onPick }: { onPick: (g: GamePick) => void }) {
             className="mt-3 text-lg uppercase text-[#e10600]"
           >
             Call your tricks →
+          </div>
+        </button>
+
+        {/* WE'RE DOOMED card */}
+        <button
+          onClick={() => onPick('doomed')}
+          className="w-full text-left border-2 border-white bg-[#0a0a0a] p-5 hover:bg-[#141414] active:scale-[0.99]"
+          style={{ clipPath: 'polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 0 100%)' }}
+        >
+          <div className="flex items-start justify-between">
+            <div
+              style={display}
+              className="text-4xl uppercase leading-none text-white"
+            >
+              We're <span className="text-[#FFCA06]">Doomed!</span>
+            </div>
+            <span className="text-xs font-bold bg-[#FFCA06] text-black px-2 py-1 uppercase">
+              Live
+            </span>
+          </div>
+          <p className="mt-2 text-sm text-white/65">
+            15 minutes to build an escape rocket before the planet explodes.
+            Contribute resources to build seats; hoard influence to steal them. 4–10 players.
+          </p>
+          <div
+            style={display}
+            className="mt-3 text-lg uppercase text-[#e10600]"
+          >
+            Escape the apocalypse →
           </div>
         </button>
 

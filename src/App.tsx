@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import {
   Check,
   Copy,
+  Flame,
   Gavel,
   Info,
   Moon,
@@ -22,6 +23,7 @@ import { AvatarGrid } from './ui/Roster';
 import SecretHitler from './ui/SecretHitler';
 import OneNight from './ui/OneNight';
 import Judgement from './ui/Judgement';
+import Doomed from './ui/Doomed';
 import {
   makeRoomCode,
 } from './game/one-night/logic';
@@ -47,7 +49,7 @@ import {
 
 const initialPublic = (
   players: { peerId: string; name: string }[],
-  game: 'werewolf' | 'secret-hitler' | 'one-night' | 'judgement' = 'one-night',
+  game: 'werewolf' | 'secret-hitler' | 'one-night' | 'judgement' | 'doomed' = 'one-night',
 ): PublicState => ({
   phase: 'lobby',
   players: players.map((p) => ({ ...p, alive: true, online: true })),
@@ -58,7 +60,7 @@ const initialPublic = (
   game,
 });
 
-function joinUrl(roomCode: string, game?: 'sh' | 'one-night' | 'judgement') {
+function joinUrl(roomCode: string, game?: 'sh' | 'one-night' | 'judgement' | 'doomed') {
   const base = `${window.location.origin}${window.location.pathname}`;
   return `${base}?room=${encodeURIComponent(roomCode)}${game ? `&game=${game}` : ''}`;
 }
@@ -152,10 +154,12 @@ export default function App() {
     const g = params.get('game');
     if (g === 'sh') return 'sh';
     if (g === 'judgement') return 'judgement';
+    if (g === 'doomed') return 'doomed';
     if (g === 'one-night') return 'werewolf';
     const upper = room.trim().toUpperCase();
     if (upper.startsWith('SH-')) return 'sh';
     if (upper.startsWith('JUD-')) return 'judgement';
+    if (upper.startsWith('DOOM-')) return 'doomed';
     return 'werewolf';
   });
   const [isHost, setIsHost] = useState(false);
@@ -639,7 +643,9 @@ export default function App() {
                 ? `bg-onuhost-${roomCode}`
                 : (saved.pub as PublicState).game === 'judgement'
                   ? `bg-judhost-${roomCode}`
-                  : null;
+                  : (saved.pub as PublicState).game === 'doomed'
+                    ? `bg-doomed-${roomCode}`
+                    : null;
           if (gameSaveKey) {
             let gameSave: string | null = null;
             try {
@@ -660,7 +666,7 @@ export default function App() {
       } catch {
         seed = initialPublic(
           [{ peerId: selfId, name: myName }],
-          selected === 'sh' ? 'secret-hitler' : selected === 'judgement' ? 'judgement' : 'one-night',
+          selected === 'sh' ? 'secret-hitler' : selected === 'judgement' ? 'judgement' : selected === 'doomed' ? 'doomed' : 'one-night',
         );
       }
       clientToPeer.current[clientId] = selfId;
@@ -744,7 +750,7 @@ export default function App() {
     sendersRef.current?.sendPub(p as unknown as Record<string, unknown>);
   };
 
-  const pickGame = (game: 'werewolf' | 'secret-hitler' | 'one-night' | 'judgement') => {
+  const pickGame = (game: 'werewolf' | 'secret-hitler' | 'one-night' | 'judgement' | 'doomed') => {
     if (!isHost || !pub) return;
     sendPubState({ ...pub, game });
   };
@@ -834,6 +840,20 @@ export default function App() {
     });
   };
 
+  const startDoomed = () => {
+    if (!handle || !pub) return;
+    const n = pub.players.length;
+    if (n < 4 || n > 10) {
+      alert("We're Doomed! needs 4-10 players.");
+      return;
+    }
+    sendPubState({
+      ...pub,
+      game: 'doomed',
+      log: [...pub.log, "We're Doomed table opening… 15 minutes remain!"].slice(-50),
+    });
+  };
+
   // bumped on every exit-to-lobby; games use it to clear their internal
   // state (they don't watch pub.phase — see exitON et al)
   const [gameReset, setGameReset] = useState(0);
@@ -890,6 +910,29 @@ export default function App() {
     sendPubState({
       ...pub,
       game: 'judgement',
+      phase: 'lobby',
+      players: pub.players.map((p) => ({ ...p, alive: true })),
+      dayCount: 1,
+      votes: {},
+      ready: [],
+      winner: null,
+      lastDead: null,
+      lastExiled: null,
+      log: [...pub.log, 'Back to lobby. Host can start again.'].slice(-50),
+    });
+  };
+
+  const exitDoomed = () => {
+    if (!pub) return;
+    setGameReset((t) => t + 1);
+    try {
+      localStorage.removeItem(`bg-doomed-${roomCode}`);
+    } catch {
+      /* ignore */
+    }
+    sendPubState({
+      ...pub,
+      game: 'doomed',
       phase: 'lobby',
       players: pub.players.map((p) => ({ ...p, alive: true })),
       dayCount: 1,
@@ -964,9 +1007,10 @@ export default function App() {
   if (!inRoom) {
     const isSH = selected === 'sh';
     const isJUD = selected === 'judgement';
+    const isDoomed = selected === 'doomed';
     return (
       <>
-        <div data-game={isSH ? 'secret-hitler' : isJUD ? 'judgement' : 'one-night'} className="min-h-screen flex items-center justify-center p-4">
+        <div data-game={isSH ? 'secret-hitler' : isJUD ? 'judgement' : isDoomed ? 'doomed' : 'one-night'} className="min-h-screen flex items-center justify-center p-4">
         <div className="w-full max-w-sm bg-white/5 cut p-6 space-y-4 border border-white/10">
           <div className="flex items-center justify-between">
             <HomeLogo onHome={() => setSelected(null)} />
@@ -978,6 +1022,8 @@ export default function App() {
             <h1 className="font-display text-4xl flex items-center gap-2"><Gavel size={30} /> Secret Hitler</h1>
           ) : isJUD ? (
             <h1 className="font-display text-4xl flex items-center gap-2"><Gavel size={30} /> Judgement</h1>
+          ) : isDoomed ? (
+            <h1 className="font-display text-4xl flex items-center gap-2 text-[#FFCA06]"><Flame size={30} /> We're Doomed</h1>
           ) : (
             <h1 className="font-display text-4xl flex items-center gap-2"><Moon size={30} /> One Night</h1>
           )}
@@ -990,6 +1036,10 @@ export default function App() {
             <p className="text-sm text-white/70">
               Judgement over the internet with a room code. No server, no
               sign-up. Bid your tricks exactly or score zero. 3–8 players.
+            </p>
+          ) : isDoomed ? (
+            <p className="text-sm text-white/70">
+              15 minutes to escape a doomed Earth. Build the rocket, steal the seats. 4–10 players.
             </p>
           ) : (
             <p className="text-sm text-white/70">
@@ -1005,7 +1055,7 @@ export default function App() {
             className="w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2 outline-none"
           />
           <button
-            onClick={() => void join(true, makeRoomCode(isSH ? 'SH' : isJUD ? 'JUD' : 'NIGHT'), name)}
+            onClick={() => void join(true, makeRoomCode(isSH ? 'SH' : isJUD ? 'JUD' : isDoomed ? 'DOOM' : 'NIGHT'), name)}
             className="btn-accent w-full"
           >
             Create a room
@@ -1020,7 +1070,7 @@ export default function App() {
           <input
             value={roomCode}
             onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-            placeholder={isJUD ? 'JUD-XXXXXX' : 'NIGHT-XXXXXX'}
+            placeholder={isDoomed ? 'DOOM-XXXXXX' : isJUD ? 'JUD-XXXXXX' : 'NIGHT-XXXXXX'}
             className="w-full rounded-lg bg-black/40 border border-white/10 px-3 py-2 outline-none font-mono"
           />
           <button
@@ -1041,10 +1091,10 @@ export default function App() {
               Diagnostics
             </button>
           </p>
-          {isSH ? <SHFinePrint /> : isJUD ? <OneNightFinePrint /> : <OneNightFinePrint />}
+          {isSH ? <SHFinePrint /> : isJUD ? <OneNightFinePrint /> : isDoomed ? <OneNightFinePrint /> : <OneNightFinePrint />}
         </div>
       </div>
-      {showHelp && <HowToOverlay game={isSH ? 'sh' : isJUD ? 'judgement' : 'onuw'} onClose={() => setShowHelp(false)} />}
+      {showHelp && <HowToOverlay game={isSH ? 'sh' : isJUD ? 'judgement' : isDoomed ? 'doomed' : 'onuw'} onClose={() => setShowHelp(false)} />}
       {showDiag && <DiagnosticsOverlay onClose={() => setShowDiag(false)} />}
       </>
     );
@@ -1053,10 +1103,11 @@ export default function App() {
   const phase = pub?.phase ?? 'lobby';
   const shActive = pub?.game === 'secret-hitler';
   const judActive = pub?.game === 'judgement';
+  const doomedActive = pub?.game === 'doomed';
   const onuActive = (pub?.game ?? 'one-night') === 'one-night';
 
   return (
-    <div data-game={shActive ? 'secret-hitler' : judActive ? 'judgement' : 'werewolf'} className="min-h-screen p-3 lg:px-8 lg:py-5">
+    <div data-game={shActive ? 'secret-hitler' : judActive ? 'judgement' : doomedActive ? 'doomed' : 'werewolf'} className="min-h-screen p-3 lg:px-8 lg:py-5">
       <div className="max-w-6xl mx-auto space-y-3">
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -1129,6 +1180,18 @@ export default function App() {
           isHost={isHost}
           initialRoster={pub.players}
           onExit={exitJUD}
+          onAddBot={addBot}
+          onRemoveBot={removeBot}
+          resetToken={gameReset}
+        />
+      ) : doomedActive && pub && handle ? (
+        <Doomed
+          handle={handle}
+          roomCode={roomCode}
+          name={name}
+          isHost={isHost}
+          initialRoster={pub.players}
+          onExit={exitDoomed}
           onAddBot={addBot}
           onRemoveBot={removeBot}
           resetToken={gameReset}
@@ -1258,7 +1321,7 @@ export default function App() {
           )}
           {isHost ? (
             <div className="lg:col-span-2 space-y-2">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 <button
                   onClick={() => pickGame('one-night')}
                   className={`rounded px-2 py-2 text-sm font-bold border ${
@@ -1289,6 +1352,16 @@ export default function App() {
                 >
                   Judgement
                 </button>
+                <button
+                  onClick={() => pickGame('doomed')}
+                  className={`rounded px-2 py-2 text-sm font-bold border ${
+                    pub?.game === 'doomed'
+                      ? 'bg-[#FFCA06] text-[#3F194D] border-transparent'
+                      : 'bg-black/30 border-white/15 text-white/70'
+                  }`}
+                >
+                  We're Doomed
+                </button>
               </div>
               {pub?.game === 'secret-hitler' ? (
                 <button onClick={startSH} className="btn-accent">
@@ -1297,6 +1370,10 @@ export default function App() {
               ) : pub?.game === 'judgement' ? (
                 <button onClick={startJUD} className="btn-accent">
                   Start Judgement ({pub?.players.length ?? 0})
+                </button>
+              ) : pub?.game === 'doomed' ? (
+                <button onClick={startDoomed} className="btn-accent">
+                  Start We're Doomed ({pub?.players.length ?? 0})
                 </button>
               ) : (
                 <button onClick={startON} className="btn-accent">
@@ -1311,7 +1388,9 @@ export default function App() {
                 ? ' Secret Hitler table opening.'
                 : pub?.game === 'judgement'
                   ? ' Judgement table opening.'
-                  : ' One night falls…'}
+                  : pub?.game === 'doomed'
+                    ? " We're Doomed table opening."
+                    : ' One night falls…'}
             </p>
           )}
         </div>
@@ -1340,7 +1419,7 @@ export default function App() {
       )}
         </>
       )}
-      {showHelp && <HowToOverlay game={pub?.game === 'secret-hitler' ? 'sh' : pub?.game === 'judgement' ? 'judgement' : 'onuw'} onClose={() => setShowHelp(false)} />}
+      {showHelp && <HowToOverlay game={pub?.game === 'secret-hitler' ? 'sh' : pub?.game === 'judgement' ? 'judgement' : pub?.game === 'doomed' ? 'doomed' : 'onuw'} onClose={() => setShowHelp(false)} />}
       {showDiag && <DiagnosticsOverlay onClose={() => setShowDiag(false)} />}
       </div>
     </div>

@@ -99,6 +99,90 @@
   clip-path: none;
 }
 
+/* We're Doomed palette & seamless flow:
+   Deep Plum Night #3F194D, Electric Violet #68097E, Hot Magenta #C91C7A,
+   Warm Coral #E8675C, Bright Apocalypse Amber/Yellow #FFCA06 */
+[data-game='doomed'] {
+  --bg: #22082b;
+  --ink: #ffffff;
+  --panel: transparent;
+  --accent: #FFCA06;
+  --accent-ink: #22082b;
+  --plum-dark: #22082b;
+  --violet: #68097E;
+  --magenta: #C91C7A;
+  --coral: #E8675C;
+  --amber: #FFCA06;
+  --avatar-ring: #FFCA06;
+  --avatar-bg: rgba(255, 202, 6, 0.12);
+  --avatar-bot: #E8675C;
+  --avatar-bot-bg: rgba(232, 103, 92, 0.12);
+  background-color: #22082b;
+  background-image: 
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(104, 9, 126, 0.35), transparent 70%),
+    radial-gradient(circle at 100% 60%, rgba(201, 28, 122, 0.12), transparent 40%),
+    radial-gradient(circle at 0% 80%, rgba(63, 25, 77, 0.4), transparent 50%);
+  color: #ffffff;
+  font-family: 'Lora', Georgia, serif;
+  letter-spacing: -0.005em;
+}
+
+[data-game='doomed'] .panel {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 1.25rem 0 0.75rem;
+  position: relative;
+}
+[data-game='doomed'] .panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255, 202, 6, 0.6) 0%, rgba(201, 28, 122, 0.4) 40%, rgba(232, 103, 92, 0.1) 80%, transparent 100%);
+}
+[data-game='doomed'] .cut {
+  clip-path: none;
+}
+[data-game='doomed'] .btn-accent {
+  background: #FFCA06;
+  color: #22082b;
+  font-family: 'Lora', Georgia, serif;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.6rem 1.4rem;
+  border-radius: 0.75rem;
+  width: auto;
+  box-shadow: 0 4px 20px -2px rgba(255, 202, 6, 0.4);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-game='doomed'] .btn-accent.w-full {
+  width: 100%;
+}
+[data-game='doomed'] div.min-h-screen > .btn-accent {
+  width: 100%;
+}
+[data-game='doomed'] .btn-accent:hover:not(:disabled) {
+  background: #ffd633;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px 0 rgba(255, 202, 6, 0.5);
+}
+[data-game='doomed'] .btn-accent:active:not(:disabled) {
+  transform: translateY(0);
+}
+[data-game='doomed'] .font-display {
+  font-family: 'Lora', Georgia, serif;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+[data-game='doomed'] .font-mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
 [data-game='secret-hitler'] {
   /* Cream-paper room: 凝脂 cream bg, 朱膘 orange accent, 春梅蓝 blue liberal. */
   --bg: #f6f4e7;

@@ -69,7 +69,7 @@ export interface PublicState {
   lastDead?: string | null;
   lastExiled?: string | null;
   /** lobby game selection; Judgement table mounts when set */
-  game?: 'werewolf' | 'secret-hitler' | 'one-night' | 'judgement';
+  game?: 'werewolf' | 'secret-hitler' | 'one-night' | 'judgement' | 'doomed';
   [k: string]: unknown;
 }
 
@@ -271,6 +271,53 @@ export interface JUDActMsg {
   kind: 'sync' | 'bid' | 'play';
   bid?: number;
   card?: Card;
+  client: string;
+  [k: string]: unknown;
+}
+
+// ---------------- We're Doomed! ----------------
+import type { DoomedPhase, StandardAction, EventCard } from '../game/doomed/logic';
+
+export interface DoomedPublic {
+  phase: DoomedPhase;
+  players: Record<
+    string,
+    {
+      peerId: string;
+      name: string;
+      civ: import('../game/doomed/logic').Civilization;
+      resources: number;
+      influence: number;
+      eliminated: boolean;
+      isBot?: boolean;
+    }
+  >;
+  order: string[];
+  turnIndex: number;
+  firstPlayerId: string;
+  rocketResources: number;
+  seatsBuilt: number;
+  contributions: Record<string, number>;
+  confirmedBids: Record<string, boolean>;
+  highestBid: number;
+  topContributorId: string | null;
+  activeEvent: EventCard | null;
+  roundNumber: number;
+  timeRemainingSec: number;
+  timerStartedAt: number | null;
+  totalDurationSec: number;
+  log: string[];
+  survivors: string[];
+  casualties: string[];
+  [k: string]: unknown;
+}
+
+export interface DoomedActMsg {
+  kind: 'sync' | 'action' | 'contribute' | 'confirm_bid' | 'finalize_bids' | 'dismiss_event' | 'event_choice' | 'time_up';
+  action?: StandardAction;
+  targetId?: string;
+  amount?: number;
+  accepted?: boolean;
   client: string;
   [k: string]: unknown;
 }

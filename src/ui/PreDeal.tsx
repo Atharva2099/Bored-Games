@@ -34,7 +34,7 @@ export function PreDeal({
 }) {
   const n = roster.length;
   const ready = n >= min && n <= max;
-  const theme = game === 'sh' ? 'secret-hitler' : game === 'judgement' ? 'judgement' : 'one-night';
+  const theme = game === 'sh' ? 'secret-hitler' : game === 'judgement' ? 'judgement' : game === 'doomed' ? 'doomed' : 'one-night';
   return (
     <div
       data-game={theme}

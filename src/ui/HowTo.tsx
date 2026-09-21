@@ -1,7 +1,64 @@
 import { X } from 'lucide-react';
 
 /** Concise how-to-play overlay. Original wording. */
-export function HowToOverlay({ onClose, game = 'onuw' }: { onClose: () => void; game?: 'onuw' | 'sh' | 'judgement' }) {
+export function HowToOverlay({ onClose, game = 'onuw' }: { onClose: () => void; game?: 'onuw' | 'sh' | 'judgement' | 'doomed' }) {
+  if (game === 'doomed') {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/80 flex items-start justify-center p-4 overflow-auto">
+        <div className="panel cut max-w-md w-full my-8 space-y-4" data-game="doomed">
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-3xl text-[#FFCA06]">How to play We're Doomed!</h2>
+            <button onClick={onClose} aria-label="Close" className="text-white/60">
+              <X size={20} />
+            </button>
+          </div>
+
+          <section className="space-y-1 text-sm text-white/85">
+            <h3 className="font-bold text-[#FFCA06]">The Apocalypse Clock</h3>
+            <p>
+              The world ends in 15 minutes! Leaders must work together to build
+              an escape rocket before the countdown hits 0:00. Every 10 Resources
+              contributed builds 1 seat on the rocket.
+            </p>
+          </section>
+
+          <section className="space-y-1 text-sm text-white/85">
+            <h3 className="font-bold text-[#FFCA06]">Action Phase (Turn-based)</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong>Produce:</strong> Gain 2 Resources.</li>
+              <li><strong>Indoctrinate:</strong> Gain 1 Influence.</li>
+              <li><strong>Propagandize:</strong> Spend 1 Resource to steal 1 Influence from a rival.</li>
+              <li><strong>Invade:</strong> Spend 1 Influence to steal 2 Resources from a rival.</li>
+              <li><strong>Nuke:</strong> Spend 8 Resources to permanently eliminate a player!</li>
+              <li>Each civilization has a unique improved ability on one action.</li>
+            </ul>
+          </section>
+
+          <section className="space-y-1 text-sm text-white/85">
+            <h3 className="font-bold text-[#FFCA06]">Contribution & Events</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>All players pledge any amount of Resources to the rocket.</li>
+              <li>The highest contributor wins 1 Influence and the First Player Coin.</li>
+              <li>A wild Event Card triggers every round, shifting rules and stockpiles.</li>
+            </ul>
+          </section>
+
+          <section className="space-y-1 text-sm text-white/85">
+            <h3 className="font-bold text-[#FFCA06]">Winning & Boarding</h3>
+            <p>
+              When the timer expires, the rocket launches with whatever seats were built.
+              The living leaders with the highest Influence take the seats and escape to victory!
+              Everyone else is doomed on Earth.
+            </p>
+          </section>
+
+          <button onClick={onClose} className="btn-accent w-full py-2.5 rounded-xl font-bold">
+            Got it
+          </button>
+        </div>
+      </div>
+    );
+  }
   if (game === 'judgement') {
     return (
       <div className="fixed inset-0 z-50 bg-black/80 flex items-start justify-center p-4 overflow-auto">
